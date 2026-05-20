@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PNG to SVG Converter</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>PNG to SVG Converter</h1>
+            <p>Pure JS vector export</p>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="button secondary" id="sampleButton" type="button">Sample</button>
+          <button class="button primary" id="downloadButton" type="button" disabled>Download SVG</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="control-panel" aria-label="Converter controls">
+          <label class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept="image/png,image/*">
+            <span class="drop-title">PNG input</span>
+            <span class="drop-name" id="fileName">Drop or browse</span>
+          </label>
+
+          <section class="control-group" aria-labelledby="modeLabel">
+            <div class="group-header">
+              <h2 id="modeLabel">Mode</h2>
+            </div>
+            <div class="segmented" role="radiogroup" aria-label="Conversion mode">
+              <label>
+                <input type="radio" name="mode" value="trace" checked>
+                <span>Trace</span>
+              </label>
+              <label>
+                <input type="radio" name="mode" value="runs">
+                <span>Exact</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="control-group" aria-labelledby="colorLabel">
+            <div class="group-header">
+              <h2 id="colorLabel">Color</h2>
+              <output id="paletteValue">8</output>
+            </div>
+            <input id="paletteSize" type="range" min="2" max="32" step="1" value="8">
+          </section>
+
+          <section class="control-group" aria-labelledby="alphaLabel">
+            <div class="group-header">
+              <h2 id="alphaLabel">Alpha cutoff</h2>
+              <output id="alphaValue">16</output>
+            </div>
+            <input id="alphaThreshold" type="range" min="0" max="254" step="1" value="16">
+          </section>
+
+          <section class="control-group" aria-labelledby="resolutionLabel">
+            <div class="group-header">
+              <h2 id="resolutionLabel">Resolution</h2>
+              <output id="resolutionValue">320</output>
+            </div>
+            <input id="maxDimension" type="range" min="64" max="1024" step="32" value="320">
+          </section>
+
+          <section class="control-group" aria-labelledby="simplifyLabel">
+            <div class="group-header">
+              <h2 id="simplifyLabel">Simplify</h2>
+              <output id="simplifyValue">0.8</output>
+            </div>
+            <input id="simplify" type="range" min="0" max="3" step="0.1" value="0.8">
+          </section>
+
+          <section class="control-group" aria-labelledby="matteLabel">
+            <div class="group-header">
+              <h2 id="matteLabel">Matte</h2>
+            </div>
+            <select id="matte">
+              <option value="transparent" selected>Transparent</option>
+              <option value="white">White</option>
+              <option value="black">Black</option>
+            </select>
+          </section>
+
+          <section class="stats" aria-label="Output details">
+            <div>
+              <span>Source</span>
+              <strong id="sourceStat">-</strong>
+            </div>
+            <div>
+              <span>Trace</span>
+              <strong id="traceStat">-</strong>
+            </div>
+            <div>
+              <span>SVG</span>
+              <strong id="sizeStat">-</strong>
+            </div>
+          </section>
+
+          <section class="palette" aria-label="Detected colors">
+            <div class="group-header">
+              <h2>Palette</h2>
+              <output id="colorCount">0</output>
+            </div>
+            <div class="swatches" id="swatches"></div>
+          </section>
+        </aside>
+
+        <section class="preview-grid" aria-label="Image previews">
+          <article class="preview-pane">
+            <div class="preview-head">
+              <h2>Original</h2>
+              <span id="originalBadge">Waiting</span>
+            </div>
+            <div class="preview-stage checker">
+              <canvas id="originalCanvas" aria-label="Original PNG preview"></canvas>
+            </div>
+          </article>
+
+          <article class="preview-pane output-pane">
+            <div class="preview-head">
+              <h2>SVG output</h2>
+              <span id="outputBadge">Idle</span>
+            </div>
+            <div class="preview-stage checker" id="svgPreview" aria-label="SVG preview"></div>
+          </article>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="statusText" aria-live="polite">Load a PNG to begin.</span>
+        <button class="text-button" id="copyButton" type="button" disabled>Copy SVG</button>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
