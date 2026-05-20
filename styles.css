@@ -447,6 +447,7 @@ canvas,
   display: block;
   border: 2px solid var(--line);
   background: transparent;
+  overflow: hidden;
 }
 
 .statusbar {
