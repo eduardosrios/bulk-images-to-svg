@@ -18,8 +18,10 @@
         </div>
         <div class="top-actions">
           <button class="button secondary" id="sampleButton" type="button">Sample</button>
+          <button class="button secondary" id="copyButton" type="button" disabled>Copy SVG</button>
           <button class="button primary" id="downloadButton" type="button" disabled>Download SVG</button>
         </div>
+        <span class="visually-hidden" id="statusText" aria-live="polite">Load a PNG to begin.</span>
       </header>
 
       <main class="workspace">
@@ -169,10 +171,6 @@
         </section>
       </main>
 
-      <footer class="statusbar">
-        <span id="statusText" aria-live="polite">Load a PNG to begin.</span>
-        <button class="text-button" id="copyButton" type="button" disabled>Copy SVG</button>
-      </footer>
     </div>
 
     <script src="app.js"></script>
