@@ -1167,6 +1167,60 @@
     const template = document.createElement("template");
     template.innerHTML = svg.replace(/^<\?xml[^>]*>\s*/i, "");
     els.svgPreview.appendChild(template.content.cloneNode(true));
+    fitPreviewSvg(els.svgPreview.querySelector("svg"));
+  }
+
+  function fitPreviewSvg(svgElement) {
+    if (!svgElement) return;
+    const viewport = readSvgViewport(svgElement);
+    if (!viewport) return;
+    if (!svgElement.hasAttribute("viewBox")) {
+      svgElement.setAttribute("viewBox", `${previewNum(viewport.x)} ${previewNum(viewport.y)} ${previewNum(viewport.width)} ${previewNum(viewport.height)}`);
+    }
+
+    let box;
+    try {
+      box = svgElement.getBBox();
+    } catch (error) {
+      return;
+    }
+    if (!box || box.width <= 0 || box.height <= 0) return;
+
+    const padding = 2;
+    const minX = Math.min(viewport.x, box.x - padding);
+    const minY = Math.min(viewport.y, box.y - padding);
+    const maxX = Math.max(viewport.x + viewport.width, box.x + box.width + padding);
+    const maxY = Math.max(viewport.y + viewport.height, box.y + box.height + padding);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (nearlyZero(minX - viewport.x) && nearlyZero(minY - viewport.y) && nearlyZero(width - viewport.width) && nearlyZero(height - viewport.height)) return;
+    svgElement.setAttribute("viewBox", `${previewNum(minX)} ${previewNum(minY)} ${previewNum(width)} ${previewNum(height)}`);
+  }
+
+  function readSvgViewport(svgElement) {
+    const viewBox = svgElement.getAttribute("viewBox");
+    if (viewBox) {
+      const values = viewBox.trim().split(/[\s,]+/).map(Number);
+      if (values.length === 4 && values.every(Number.isFinite) && values[2] > 0 && values[3] > 0) {
+        return { x: values[0], y: values[1], width: values[2], height: values[3] };
+      }
+    }
+
+    const width = svgLength(svgElement.getAttribute("width")) || state.sourceWidth;
+    const height = svgLength(svgElement.getAttribute("height")) || state.sourceHeight;
+    if (!width || !height) return null;
+    return { x: 0, y: 0, width, height };
+  }
+
+  function svgLength(value) {
+    if (!value) return 0;
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function previewNum(value) {
+    const rounded = trimNumber(value);
+    return rounded === "-0" ? "0" : rounded;
   }
 
   function renderPalette(palette) {
