@@ -15,6 +15,7 @@ Controls:
 - `Resolution`: controls the raster size used for tracing.
 - `Precision`: supersamples the source before conversion. `10x` analyzes 100 times more pixels than the base raster and reduces visible stair-stepping, at the cost of larger SVG files.
 - `Simplify`: smooths traced paths by removing detail and lightly rounding traced contours.
+- `Seam fix`: adds a small same-color overlap to Trace paths to hide light gaps between adjacent colored regions.
 - `Number precision`: rounds SVG path coordinates from `1` to `8` decimal places. `1` is compact and usually visually stable for icons; higher values preserve more subpixel detail and increase SVG size.
 - `Matte`: composites transparent pixels against transparent, white, or black output.
 

@@ -30,6 +30,8 @@
     precisionValue: document.getElementById("precisionValue"),
     simplify: document.getElementById("simplify"),
     simplifyValue: document.getElementById("simplifyValue"),
+    seamFix: document.getElementById("seamFix"),
+    seamFixValue: document.getElementById("seamFixValue"),
     numberPrecision: document.getElementById("numberPrecision"),
     numberPrecisionValue: document.getElementById("numberPrecisionValue"),
     matte: document.getElementById("matte")
@@ -94,7 +96,7 @@
       });
     });
 
-    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.numberPrecision, els.matte].forEach(function (control) {
+    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.seamFix, els.numberPrecision, els.matte].forEach(function (control) {
       control.addEventListener("input", function () {
         syncControlLabels();
         queueProcess();
@@ -118,12 +120,14 @@
     els.resolutionValue.textContent = els.maxDimension.value;
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
+    els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
     els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
   }
 
   function syncControlAvailability(exactMode) {
     setControlDisabled(els.paletteSize, exactMode);
     setControlDisabled(els.simplify, exactMode);
+    setControlDisabled(els.seamFix, exactMode);
     setControlDisabled(els.numberPrecision, exactMode);
   }
 
@@ -221,6 +225,7 @@
       maxDimension: Number(els.maxDimension.value),
       precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
+      seamFix: Number(els.seamFix.value),
       numberPrecision: Number(els.numberPrecision.value),
       matte: els.matte.value
     };
@@ -326,7 +331,8 @@
       const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance);
       if (!d) continue;
       const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
-      paths.push(`<path${fillAttr(color.hex)}${opacity} fill-rule="evenodd" d="${d}"/>`);
+      const seam = seamFixAttr(color, options);
+      paths.push(`<path${fillAttr(color.hex)}${opacity}${seam} fill-rule="evenodd" d="${d}"/>`);
     }
 
     return {
@@ -814,11 +820,20 @@
     const viewBox = input.width === input.sourceWidth && input.height === input.sourceHeight
       ? ""
       : ` viewBox="0 0 ${input.width} ${input.height}"`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}"${viewBox}${label} shape-rendering="geometricPrecision">${input.paths.join("")}</svg>`;
+    const seam = input.options && input.options.mode === "trace" && input.options.seamFix > 0
+      ? ` stroke-width="${trimNumber(input.options.seamFix)}" stroke-linecap="round" stroke-linejoin="round"`
+      : "";
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}"${viewBox}${label}${seam} shape-rendering="geometricPrecision">${input.paths.join("")}</svg>`;
   }
 
   function fillAttr(hex) {
     return hex === "#000" ? "" : ` fill="${hex}"`;
+  }
+
+  function seamFixAttr(color, options) {
+    if (!options.seamFix || options.seamFix <= 0) return "";
+    const opacity = color.opacity < 0.995 ? ` stroke-opacity="${trimNumber(color.opacity)}"` : "";
+    return ` stroke="${color.hex}"${opacity}`;
   }
 
   function buildRunPath(indexMap, width, height, colorIndex) {
