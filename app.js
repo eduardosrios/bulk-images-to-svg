@@ -88,7 +88,10 @@
     });
 
     document.querySelectorAll("input[name='mode']").forEach(function (input) {
-      input.addEventListener("change", queueProcess);
+      input.addEventListener("change", function () {
+        syncControlLabels();
+        queueProcess();
+      });
     });
 
     [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.numberPrecision, els.matte].forEach(function (control) {
@@ -108,12 +111,31 @@
   }
 
   function syncControlLabels() {
-    els.paletteValue.textContent = els.paletteSize.value;
+    const exactMode = isExactMode();
+    syncControlAvailability(exactMode);
+    els.paletteValue.textContent = exactMode ? "N/A" : els.paletteSize.value;
     els.alphaValue.textContent = els.alphaThreshold.value;
     els.resolutionValue.textContent = els.maxDimension.value;
     els.precisionValue.textContent = `${els.precision.value}x`;
-    els.simplifyValue.textContent = Number(els.simplify.value).toFixed(1);
-    els.numberPrecisionValue.textContent = els.numberPrecision.value;
+    els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
+    els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
+  }
+
+  function syncControlAvailability(exactMode) {
+    setControlDisabled(els.paletteSize, exactMode);
+    setControlDisabled(els.simplify, exactMode);
+    setControlDisabled(els.numberPrecision, exactMode);
+  }
+
+  function setControlDisabled(control, disabled) {
+    control.disabled = disabled;
+    const group = control.closest(".control-group");
+    if (group) group.classList.toggle("is-disabled", disabled);
+  }
+
+  function isExactMode() {
+    const modeInput = document.querySelector("input[name='mode']:checked");
+    return Boolean(modeInput && modeInput.value === "runs");
   }
 
   function setStatus(message) {

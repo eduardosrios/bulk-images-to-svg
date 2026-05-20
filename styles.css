@@ -227,6 +227,15 @@ h1 {
   padding: 14px;
 }
 
+.control-group.is-disabled {
+  opacity: 0.58;
+}
+
+.control-group.is-disabled input,
+.control-group.is-disabled select {
+  cursor: not-allowed;
+}
+
 .group-header,
 .preview-head {
   display: flex;
