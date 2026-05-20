@@ -308,6 +308,7 @@
     const color = colorProfile || analyzeVisibleColors(data, options);
     const loops = traceAlphaContours(data, width, height, threshold);
     const parts = [];
+    let cursor = { x: 0, y: 0 };
     let pointCount = 0;
 
     for (let i = 0; i < loops.length; i += 1) {
@@ -315,7 +316,8 @@
       pointCount += points.length;
       if (tolerance > 0) points = simplifyClosed(points, tolerance);
       if (points.length < 3) continue;
-      parts.push(tolerance > 0 ? pointsToSmoothPath(points) : pointsToPath(points));
+      parts.push(tolerance > 0 ? pointsToSmoothPath(points, cursor) : pointsToPath(points, cursor));
+      cursor = tolerance > 0 ? smoothStartPoint(points) : points[0];
     }
 
     return {
@@ -822,6 +824,7 @@
 
     const loops = traceMask(mask, width, height);
     const parts = [];
+    let cursor = { x: 0, y: 0 };
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(loops[i]);
       const originalPointCount = points.length;
@@ -829,7 +832,13 @@
         points = simplifyClosed(points, tolerance);
       }
       if (points.length < 3) continue;
-      parts.push(tolerance > 0 && originalPointCount > 12 ? pointsToSmoothPath(points) : pointsToPath(points));
+      if (tolerance > 0 && originalPointCount > 12) {
+        parts.push(pointsToSmoothPath(points, cursor));
+        cursor = smoothStartPoint(points);
+      } else {
+        parts.push(pointsToPath(points, cursor));
+        cursor = points[0];
+      }
     }
     return parts.join("");
   }
@@ -1021,12 +1030,14 @@
     return px * px + py * py;
   }
 
-  function pointsToPath(points) {
-    const commands = [`M${nums(points[0].x, points[0].y)}`];
+  function pointsToPath(points, cursor) {
+    const origin = cursor || { x: 0, y: 0 };
+    const commands = [`m${nums(points[0].x - origin.x, points[0].y - origin.y)}`];
     let pendingCommand = "";
     let pendingX = 0;
     let pendingY = 0;
     let pendingPairs = [];
+    let canUseImplicitLine = true;
 
     function flushPending() {
       if (!pendingCommand) return;
@@ -1035,8 +1046,13 @@
       } else if (pendingCommand === "v") {
         commands.push(`v${num(pendingY)}`);
       } else {
-        commands.push(`l${numsArray(pendingPairs)}`);
+        if (canUseImplicitLine) {
+          commands[commands.length - 1] += numsArray(pendingPairs);
+        } else {
+          commands.push(`l${numsArray(pendingPairs)}`);
+        }
       }
+      canUseImplicitLine = false;
       pendingCommand = "";
       pendingX = 0;
       pendingY = 0;
@@ -1094,11 +1110,12 @@
     return nearlyZero(cross) && dot > 0;
   }
 
-  function pointsToSmoothPath(points) {
+  function pointsToSmoothPath(points, previousCursor) {
     const commands = [];
     const lastIndex = points.length - 1;
     const start = midpoint(points[lastIndex], points[0]);
-    commands.push(`M${nums(start.x, start.y)}`);
+    const origin = previousCursor || { x: 0, y: 0 };
+    commands.push(`m${nums(start.x - origin.x, start.y - origin.y)}`);
     let cursor = start;
 
     for (let i = 0; i < points.length; i += 1) {
@@ -1111,6 +1128,10 @@
 
     commands.push("Z");
     return commands.join("");
+  }
+
+  function smoothStartPoint(points) {
+    return midpoint(points[points.length - 1], points[0]);
   }
 
   function midpoint(a, b) {
