@@ -2,6 +2,7 @@
   "use strict";
 
   const els = {
+    topbar: document.querySelector(".topbar"),
     fileInput: document.getElementById("fileInput"),
     dropZone: document.getElementById("dropZone"),
     fileName: document.getElementById("fileName"),
@@ -53,6 +54,9 @@
   syncControlLabels();
 
   function bindEvents() {
+    updateStickyOffset();
+    window.addEventListener("resize", updateStickyOffset);
+
     els.fileInput.addEventListener("change", function () {
       const file = els.fileInput.files && els.fileInput.files[0];
       if (file) loadFile(file);
@@ -107,6 +111,12 @@
 
   function setStatus(message) {
     els.statusText.textContent = message;
+  }
+
+  function updateStickyOffset() {
+    if (!els.topbar) return;
+    const topbarHeight = els.topbar.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--preview-sticky-top", `${Math.ceil(topbarHeight + 14)}px`);
   }
 
   function loadFile(file) {

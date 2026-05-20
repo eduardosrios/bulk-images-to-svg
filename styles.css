@@ -12,6 +12,7 @@
   --blue: #3157d7;
   --shadow: 0 22px 60px rgba(23, 25, 21, 0.14);
   --radius: 8px;
+  --preview-sticky-top: 110px;
 }
 
 * {
@@ -370,6 +371,12 @@ select {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(14px, 2vw, 24px);
+  position: sticky;
+  top: var(--preview-sticky-top);
+  align-self: start;
+  max-height: calc(100vh - var(--preview-sticky-top) - 14px);
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .preview-pane {
@@ -496,6 +503,12 @@ canvas,
   .control-panel,
   .preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .preview-grid {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 
   .drop-zone,
