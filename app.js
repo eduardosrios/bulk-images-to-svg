@@ -14,6 +14,7 @@
     statusText: document.getElementById("statusText"),
     sourceStat: document.getElementById("sourceStat"),
     traceStat: document.getElementById("traceStat"),
+    originalSizeStat: document.getElementById("originalSizeStat"),
     sizeStat: document.getElementById("sizeStat"),
     colorCount: document.getElementById("colorCount"),
     swatches: document.getElementById("swatches"),
@@ -44,6 +45,7 @@
     sourceName: "image",
     sourceWidth: 0,
     sourceHeight: 0,
+    sourceBytes: 0,
     svg: "",
     palette: [],
     processing: false,
@@ -132,7 +134,7 @@
 
     const reader = new FileReader();
     reader.onload = function () {
-      loadImage(String(reader.result), file.name);
+      loadImage(String(reader.result), file.name, file.size);
     };
     reader.onerror = function () {
       setStatus("The image could not be read.");
@@ -141,20 +143,24 @@
     reader.readAsDataURL(file);
   }
 
-  function loadImage(src, name) {
+  function loadImage(src, name, sourceBytes, revokeAfterLoad) {
     const image = new Image();
     image.onload = function () {
       state.image = image;
       state.sourceName = name || "image";
       state.sourceWidth = image.naturalWidth || image.width;
       state.sourceHeight = image.naturalHeight || image.height;
+      state.sourceBytes = sourceBytes || 0;
       els.fileName.textContent = state.sourceName;
       els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
+      els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
       els.originalBadge.textContent = "Loaded";
       renderOriginalPreview(image);
+      if (revokeAfterLoad) URL.revokeObjectURL(src);
       queueProcess(0);
     };
     image.onerror = function () {
+      if (revokeAfterLoad) URL.revokeObjectURL(src);
       setStatus("The image could not be decoded.");
     };
     image.src = src;
@@ -1260,7 +1266,13 @@
     context.lineJoin = "round";
     context.strokeRect(28, 28, 164, 124);
 
-    loadImage(canvas.toDataURL("image/png"), "sample-badge.png");
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        loadImage(canvas.toDataURL("image/png"), "sample-badge.png", 0);
+        return;
+      }
+      loadImage(URL.createObjectURL(blob), "sample-badge.png", blob.size, true);
+    }, "image/png");
   }
 
   function roundedRect(context, x, y, width, height, radius) {
