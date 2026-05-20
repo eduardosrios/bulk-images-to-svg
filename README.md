@@ -17,7 +17,7 @@ Controls:
 - `Simplify`: smooths traced paths by removing detail and lightly rounding traced contours.
 - `Matte`: composites transparent pixels against transparent, white, or black output.
 
-For compact icon-like PNGs, start with `Trace`, `Color 2`, `Precision 4x` or `10x`, and `Simplify 2-3`. Monochrome transparent PNGs are traced as a single curved path when possible, which keeps files small and avoids pixel stair-steps.
+For compact icon-like PNGs, start with `Trace`, `Precision 4x` or `10x`, and `Simplify 2-3`. Monochrome transparent PNGs are detected automatically and traced as a single curved compound path when possible, which keeps files small and avoids pixel stair-steps.
 
 For the closest visual match, use `Exact`. Exact mode preserves per-pixel RGB and opacity instead of reducing the image to the selected palette, but it can produce larger SVGs when many semi-transparent edge pixels are kept. Raise `Alpha cutoff` to reduce file size.
 

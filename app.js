@@ -34,6 +34,7 @@
 
   const MAX_PROCESSING_DIMENSION = 6144;
   const MAX_EXACT_SWATCHES = 256;
+  const MONOCHROME_COLOR_DISTANCE = 18;
 
   const state = {
     image: null,
@@ -277,8 +278,9 @@
   }
 
   function buildTraceResult(data, width, height, options) {
-    if (options.paletteSize <= 2 && options.matte === "transparent") {
-      return buildAlphaTraceResult(data, width, height, options);
+    const colorProfile = analyzeVisibleColors(data, options);
+    if (options.matte === "transparent" && (options.paletteSize <= 2 || colorProfile.isMonochrome)) {
+      return buildAlphaTraceResult(data, width, height, options, colorProfile);
     }
 
     const quantized = quantizeImage(data, width, height, options);
@@ -300,10 +302,10 @@
     };
   }
 
-  function buildAlphaTraceResult(data, width, height, options) {
+  function buildAlphaTraceResult(data, width, height, options, colorProfile) {
     const threshold = traceAlphaThreshold(options.alphaThreshold);
     const tolerance = options.simplify * Math.max(1, options.precision);
-    const color = averageVisibleColor(data, options);
+    const color = colorProfile || analyzeVisibleColors(data, options);
     const loops = traceAlphaContours(data, width, height, threshold);
     const parts = [];
     let pointCount = 0;
@@ -402,12 +404,18 @@
     return Math.max(1, Math.min(254, alphaThreshold));
   }
 
-  function averageVisibleColor(data, options) {
+  function analyzeVisibleColors(data, options) {
     let r = 0;
     let g = 0;
     let b = 0;
     let weight = 0;
     let count = 0;
+    let minR = 255;
+    let minG = 255;
+    let minB = 255;
+    let maxR = 0;
+    let maxG = 0;
+    let maxB = 0;
     const scratch = { r: 0, g: 0, b: 0, a: 0 };
 
     for (let index = 0; index < data.length / 4; index += 1) {
@@ -418,12 +426,19 @@
       b += scratch.b * scratch.a;
       weight += scratch.a;
       count += 1;
+      minR = Math.min(minR, scratch.r);
+      minG = Math.min(minG, scratch.g);
+      minB = Math.min(minB, scratch.b);
+      maxR = Math.max(maxR, scratch.r);
+      maxG = Math.max(maxG, scratch.g);
+      maxB = Math.max(maxB, scratch.b);
     }
 
-    if (!weight) return { hex: "#000000", count: 0 };
+    if (!weight) return { hex: "#000000", count: 0, isMonochrome: true };
     return {
       hex: rgbToHex(Math.round(r / weight), Math.round(g / weight), Math.round(b / weight)),
-      count
+      count,
+      isMonochrome: Math.max(maxR - minR, maxG - minG, maxB - minB) <= MONOCHROME_COLOR_DISTANCE
     };
   }
 
