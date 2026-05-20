@@ -51,7 +51,7 @@
               <h2 id="colorLabel">Color</h2>
               <output id="paletteValue">8</output>
             </div>
-            <input id="paletteSize" type="range" min="2" max="32" step="1" value="8">
+            <input id="paletteSize" type="range" min="2" max="256" step="1" value="8">
           </section>
 
           <section class="control-group" aria-labelledby="alphaLabel">
@@ -67,7 +67,22 @@
               <h2 id="resolutionLabel">Resolution</h2>
               <output id="resolutionValue">320</output>
             </div>
-            <input id="maxDimension" type="range" min="64" max="1024" step="32" value="320">
+            <input id="maxDimension" type="range" min="64" max="4096" step="32" value="320">
+          </section>
+
+          <section class="control-group" aria-labelledby="precisionLabel">
+            <div class="group-header">
+              <h2 id="precisionLabel">Precision</h2>
+              <output id="precisionValue">1x</output>
+            </div>
+            <select id="precision">
+              <option value="1" selected>1x pixels</option>
+              <option value="2">2x scale / 4x pixels</option>
+              <option value="4">4x scale / 16x pixels</option>
+              <option value="5">5x scale / 25x pixels</option>
+              <option value="8">8x scale / 64x pixels</option>
+              <option value="10">10x scale / 100x pixels</option>
+            </select>
           </section>
 
           <section class="control-group" aria-labelledby="simplifyLabel">

@@ -24,10 +24,15 @@
     alphaValue: document.getElementById("alphaValue"),
     maxDimension: document.getElementById("maxDimension"),
     resolutionValue: document.getElementById("resolutionValue"),
+    precision: document.getElementById("precision"),
+    precisionValue: document.getElementById("precisionValue"),
     simplify: document.getElementById("simplify"),
     simplifyValue: document.getElementById("simplifyValue"),
     matte: document.getElementById("matte")
   };
+
+  const MAX_PROCESSING_DIMENSION = 6144;
+  const MAX_EXACT_SWATCHES = 256;
 
   const state = {
     image: null,
@@ -75,7 +80,7 @@
       input.addEventListener("change", queueProcess);
     });
 
-    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.simplify, els.matte].forEach(function (control) {
+    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.matte].forEach(function (control) {
       control.addEventListener("input", function () {
         syncControlLabels();
         queueProcess();
@@ -95,6 +100,7 @@
     els.paletteValue.textContent = els.paletteSize.value;
     els.alphaValue.textContent = els.alphaThreshold.value;
     els.resolutionValue.textContent = els.maxDimension.value;
+    els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = Number(els.simplify.value).toFixed(1);
   }
 
@@ -165,6 +171,7 @@
       paletteSize: Number(els.paletteSize.value),
       alphaThreshold: Number(els.alphaThreshold.value),
       maxDimension: Number(els.maxDimension.value),
+      precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
       matte: els.matte.value
     };
@@ -182,32 +189,35 @@
     window.requestAnimationFrame(function () {
       try {
         const options = readOptions();
-        const raster = rasterizeForProcessing(state.image, options.maxDimension);
-        const quantized = quantizeImage(raster.imageData.data, raster.width, raster.height, options);
+        const raster = rasterizeForProcessing(state.image, options);
+        const result = options.mode === "runs"
+          ? buildExactResult(raster.imageData.data, raster.width, raster.height, options)
+          : buildTraceResult(raster.imageData.data, raster.width, raster.height, options);
         const svg = buildSvg({
           width: raster.width,
           height: raster.height,
           sourceWidth: state.sourceWidth,
           sourceHeight: state.sourceHeight,
           sourceName: state.sourceName,
-          indexMap: quantized.indexMap,
-          palette: quantized.palette,
+          paths: result.paths,
           options
         });
 
         state.svg = svg;
-        state.palette = quantized.palette;
+        state.palette = result.palette;
         renderSvgPreview(svg);
-        renderPalette(quantized.palette);
+        renderPalette(result.palette);
 
         const bytes = new Blob([svg]).size;
-        els.traceStat.textContent = `${raster.width} x ${raster.height}`;
+        els.traceStat.textContent = raster.wasCapped
+          ? `${raster.width} x ${raster.height} capped`
+          : `${raster.width} x ${raster.height}`;
         els.sizeStat.textContent = formatBytes(bytes);
-        els.colorCount.textContent = String(quantized.palette.length);
-        els.outputBadge.textContent = quantized.activePixels ? "Ready" : "Empty";
+        els.colorCount.textContent = String(result.palette.length);
+        els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
         els.copyButton.disabled = !svg;
-        setStatus(quantized.activePixels ? "SVG ready." : "No visible pixels passed the alpha cutoff.");
+        setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
       } catch (error) {
         console.error(error);
         setStatus(error && error.message ? error.message : "Conversion failed.");
@@ -218,23 +228,120 @@
     });
   }
 
-  function rasterizeForProcessing(image, maxDimension) {
-    const scale = Math.min(1, maxDimension / Math.max(state.sourceWidth, state.sourceHeight));
+  function rasterizeForProcessing(image, options) {
+    const sourceMax = Math.max(state.sourceWidth, state.sourceHeight);
+    const baseDimension = Math.min(sourceMax, options.maxDimension);
+    const requestedDimension = Math.max(1, Math.round(baseDimension * options.precision));
+    const cappedDimension = Math.min(requestedDimension, MAX_PROCESSING_DIMENSION);
+    const scale = cappedDimension / sourceMax;
     const width = Math.max(1, Math.round(state.sourceWidth * scale));
     const height = Math.max(1, Math.round(state.sourceHeight * scale));
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.imageSmoothingEnabled = true;
+    context.imageSmoothingEnabled = scale !== 1;
     context.imageSmoothingQuality = "high";
     context.clearRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
     return {
       width,
       height,
-      imageData: context.getImageData(0, 0, width, height)
+      imageData: context.getImageData(0, 0, width, height),
+      wasCapped: cappedDimension < requestedDimension
     };
+  }
+
+  function buildTraceResult(data, width, height, options) {
+    const quantized = quantizeImage(data, width, height, options);
+    const paths = [];
+
+    for (let colorIndex = 0; colorIndex < quantized.palette.length; colorIndex += 1) {
+      const color = quantized.palette[colorIndex];
+      const d = buildTracePath(quantized.indexMap, width, height, colorIndex, options.simplify);
+      if (!d) continue;
+      const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
+      paths.push(`  <path fill="${color.hex}"${opacity} fill-rule="evenodd" d="${d}"/>`);
+    }
+
+    return {
+      paths,
+      palette: quantized.palette,
+      activePixels: quantized.activePixels
+    };
+  }
+
+  function buildExactResult(data, width, height, options) {
+    const styles = new Map();
+    const styleOrder = [];
+    const counts = new Map();
+    const scratch = { r: 0, g: 0, b: 0, a: 0 };
+    let activePixels = 0;
+
+    function getStyle(index) {
+      readColor(data, index, options, scratch);
+      if (scratch.a === 0) return null;
+      const key = `${scratch.r},${scratch.g},${scratch.b},${scratch.a}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+      activePixels += 1;
+
+      if (!styles.has(key)) {
+        styles.set(key, {
+          hex: rgbToHex(scratch.r, scratch.g, scratch.b),
+          opacity: options.matte === "transparent" ? scratch.a / 255 : 1,
+          segments: []
+        });
+        styleOrder.push(key);
+      }
+      return key;
+    }
+
+    for (let y = 0; y < height; y += 1) {
+      let x = 0;
+      while (x < width) {
+        const key = getStyle(y * width + x);
+        if (!key) {
+          x += 1;
+          continue;
+        }
+
+        const start = x;
+        x += 1;
+        while (x < width) {
+          const nextOffset = y * width + x;
+          readColor(data, nextOffset, options, scratch);
+          const nextKey = scratch.a === 0 ? null : `${scratch.r},${scratch.g},${scratch.b},${scratch.a}`;
+          if (nextKey !== key) break;
+          counts.set(key, (counts.get(key) || 0) + 1);
+          activePixels += 1;
+          x += 1;
+        }
+
+        styles.get(key).segments.push(`M${start} ${y}H${x}V${y + 1}H${start}Z`);
+      }
+    }
+
+    const sortedKeys = styleOrder.sort(function (a, b) {
+      return (counts.get(b) || 0) - (counts.get(a) || 0);
+    });
+    const paths = [];
+    const palette = [];
+
+    for (let i = 0; i < sortedKeys.length; i += 1) {
+      const key = sortedKeys[i];
+      const style = styles.get(key);
+      const opacity = style.opacity < 0.995 ? ` fill-opacity="${trimNumber(style.opacity)}"` : "";
+      paths.push(`  <path fill="${style.hex}"${opacity} d="${style.segments.join("")}"/>`);
+      if (palette.length < MAX_EXACT_SWATCHES) {
+        palette.push({
+          hex: style.hex,
+          opacity: style.opacity,
+          count: counts.get(key) || 0
+        });
+      }
+    }
+
+    return { paths, palette, activePixels };
   }
 
   function quantizeImage(data, width, height, options) {
@@ -406,26 +513,12 @@
 
   function buildSvg(input) {
     const escapedName = escapeXml(input.sourceName.replace(/\.[^.]+$/, "") || "converted");
-    const shapeRendering = input.options.mode === "runs" ? "crispEdges" : "geometricPrecision";
-    const paths = [];
-
-    for (let colorIndex = 0; colorIndex < input.palette.length; colorIndex += 1) {
-      const color = input.palette[colorIndex];
-      const d = input.options.mode === "runs"
-        ? buildRunPath(input.indexMap, input.width, input.height, colorIndex)
-        : buildTracePath(input.indexMap, input.width, input.height, colorIndex, input.options.simplify);
-
-      if (!d) continue;
-      const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
-      const fillRule = input.options.mode === "trace" ? ' fill-rule="evenodd"' : "";
-      paths.push(`  <path fill="${color.hex}"${opacity}${fillRule} d="${d}"/>`);
-    }
 
     return [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}" viewBox="0 0 ${input.width} ${input.height}" shape-rendering="${shapeRendering}" role="img" aria-label="${escapedName}">`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}" viewBox="0 0 ${input.width} ${input.height}" shape-rendering="geometricPrecision" role="img" aria-label="${escapedName}">`,
       `  <title>${escapedName}</title>`,
-      paths.join("\n"),
+      input.paths.join("\n"),
       "</svg>"
     ].filter(Boolean).join("\n");
   }
@@ -469,7 +562,10 @@
     const parts = [];
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(loops[i]);
-      if (tolerance > 0) points = simplifyClosed(points, tolerance);
+      if (tolerance > 0) {
+        points = simplifyClosed(points, tolerance);
+        points = smoothClosed(points, Math.min(3, Math.max(1, Math.ceil(tolerance))), 0.22);
+      }
       if (points.length < 3) continue;
       parts.push(pointsToPath(points));
     }
@@ -663,6 +759,30 @@
     return px * px + py * py;
   }
 
+  function smoothClosed(points, iterations, ratio) {
+    if (points.length < 3 || iterations <= 0) return points.slice();
+    let result = points.slice();
+
+    for (let pass = 0; pass < iterations; pass += 1) {
+      const next = [];
+      for (let i = 0; i < result.length; i += 1) {
+        const current = result[i];
+        const following = result[(i + 1) % result.length];
+        next.push({
+          x: current.x * (1 - ratio) + following.x * ratio,
+          y: current.y * (1 - ratio) + following.y * ratio
+        });
+        next.push({
+          x: current.x * ratio + following.x * (1 - ratio),
+          y: current.y * ratio + following.y * (1 - ratio)
+        });
+      }
+      result = next;
+    }
+
+    return result;
+  }
+
   function pointsToPath(points) {
     const commands = [`M${trimNumber(points[0].x)} ${trimNumber(points[0].y)}`];
     for (let i = 1; i < points.length; i += 1) {
@@ -800,6 +920,12 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function precisionStatus(raster, result, options) {
+    const mode = options.mode === "runs" ? "Exact RGBA" : "Trace";
+    const cap = raster.wasCapped ? " Processing was capped to protect browser memory." : "";
+    return `${mode} SVG ready: ${result.activePixels.toLocaleString()} pixels, ${result.paths.length.toLocaleString()} paths.${cap}`;
   }
 
   function escapeXml(value) {

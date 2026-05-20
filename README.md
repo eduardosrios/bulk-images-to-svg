@@ -10,11 +10,14 @@ Controls:
 
 - `Trace`: groups flat color regions into SVG paths for cleaner output.
 - `Exact`: exports pixel-accurate horizontal runs for maximum fidelity.
-- `Color`: limits the generated palette size.
+- `Color`: limits the generated palette size in Trace mode.
 - `Alpha cutoff`: ignores pixels below the selected opacity.
 - `Resolution`: controls the raster size used for tracing.
-- `Simplify`: smooths traced paths by removing detail.
+- `Precision`: supersamples the source before conversion. `10x` analyzes 100 times more pixels than the base raster and reduces visible stair-stepping, at the cost of larger SVG files.
+- `Simplify`: smooths traced paths by removing detail and lightly rounding traced contours.
 - `Matte`: composites transparent pixels against transparent, white, or black output.
+
+For the closest visual match, use `Exact` with a high `Precision` value. Exact mode preserves per-pixel RGB and opacity instead of reducing the image to the selected palette. For cleaner vector shapes, use `Trace` with `Simplify` above `0`.
 
 ## Files
 
