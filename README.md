@@ -1,4 +1,4 @@
-# PNG to SVG Converter
+# Bulk PNG to SVG
 
 A standalone PNG to SVG converter built with pure browser JavaScript. It runs fully client-side: image loading, pixel reading, color quantization, path generation, preview, copy, and download all happen in the browser.
 
