@@ -42,6 +42,7 @@
     svg: "",
     palette: [],
     processing: false,
+    needsProcess: false,
     pendingTimer: 0
   };
 
@@ -161,6 +162,10 @@
   function queueProcess(delay) {
     window.clearTimeout(state.pendingTimer);
     if (!state.image) return;
+    if (state.processing) {
+      state.needsProcess = true;
+      return;
+    }
     state.pendingTimer = window.setTimeout(processCurrentImage, typeof delay === "number" ? delay : 160);
   }
 
@@ -178,9 +183,14 @@
   }
 
   function processCurrentImage() {
-    if (!state.image || state.processing) return;
+    if (!state.image) return;
+    if (state.processing) {
+      state.needsProcess = true;
+      return;
+    }
 
     state.processing = true;
+    state.needsProcess = false;
     setStatus("Tracing image...");
     els.outputBadge.textContent = "Working";
     els.downloadButton.disabled = true;
@@ -224,6 +234,10 @@
         els.outputBadge.textContent = "Error";
       } finally {
         state.processing = false;
+        if (state.needsProcess) {
+          state.needsProcess = false;
+          queueProcess(0);
+        }
       }
     });
   }
@@ -253,12 +267,17 @@
   }
 
   function buildTraceResult(data, width, height, options) {
+    if (options.paletteSize <= 2 && options.matte === "transparent") {
+      return buildAlphaTraceResult(data, width, height, options);
+    }
+
     const quantized = quantizeImage(data, width, height, options);
     const paths = [];
+    const traceTolerance = options.simplify * Math.max(1, options.precision);
 
     for (let colorIndex = 0; colorIndex < quantized.palette.length; colorIndex += 1) {
       const color = quantized.palette[colorIndex];
-      const d = buildTracePath(quantized.indexMap, width, height, colorIndex, options.simplify);
+      const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance);
       if (!d) continue;
       const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
       paths.push(`  <path fill="${color.hex}"${opacity} fill-rule="evenodd" d="${d}"/>`);
@@ -271,6 +290,30 @@
     };
   }
 
+  function buildAlphaTraceResult(data, width, height, options) {
+    const threshold = traceAlphaThreshold(options.alphaThreshold);
+    const tolerance = options.simplify * Math.max(1, options.precision);
+    const color = averageVisibleColor(data, options);
+    const loops = traceAlphaContours(data, width, height, threshold);
+    const parts = [];
+    let pointCount = 0;
+
+    for (let i = 0; i < loops.length; i += 1) {
+      let points = removeDuplicatePoints(loops[i]);
+      pointCount += points.length;
+      if (tolerance > 0) points = simplifyClosed(points, tolerance);
+      if (points.length < 3) continue;
+      parts.push(tolerance > 0 ? pointsToSmoothPath(points) : pointsToPath(points));
+    }
+
+    return {
+      paths: parts.length ? [`  <path fill="${color.hex}" fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
+      palette: [{ hex: color.hex, opacity: 1, count: color.count }],
+      activePixels: color.count,
+      sourcePoints: pointCount
+    };
+  }
+
   function buildExactResult(data, width, height, options) {
     const styles = new Map();
     const styleOrder = [];
@@ -280,7 +323,7 @@
 
     function getStyle(index) {
       readColor(data, index, options, scratch);
-      if (scratch.a === 0) return null;
+      if (scratch.a <= options.alphaThreshold) return null;
       const key = `${scratch.r},${scratch.g},${scratch.b},${scratch.a}`;
       counts.set(key, (counts.get(key) || 0) + 1);
       activePixels += 1;
@@ -310,7 +353,7 @@
         while (x < width) {
           const nextOffset = y * width + x;
           readColor(data, nextOffset, options, scratch);
-          const nextKey = scratch.a === 0 ? null : `${scratch.r},${scratch.g},${scratch.b},${scratch.a}`;
+          const nextKey = scratch.a <= options.alphaThreshold ? null : `${scratch.r},${scratch.g},${scratch.b},${scratch.a}`;
           if (nextKey !== key) break;
           counts.set(key, (counts.get(key) || 0) + 1);
           activePixels += 1;
@@ -342,6 +385,199 @@
     }
 
     return { paths, palette, activePixels };
+  }
+
+  function traceAlphaThreshold(alphaThreshold) {
+    if (alphaThreshold >= 240) return 128;
+    return Math.max(1, Math.min(254, alphaThreshold));
+  }
+
+  function averageVisibleColor(data, options) {
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let weight = 0;
+    let count = 0;
+    const scratch = { r: 0, g: 0, b: 0, a: 0 };
+
+    for (let index = 0; index < data.length / 4; index += 1) {
+      readColor(data, index, options, scratch);
+      if (scratch.a === 0) continue;
+      r += scratch.r * scratch.a;
+      g += scratch.g * scratch.a;
+      b += scratch.b * scratch.a;
+      weight += scratch.a;
+      count += 1;
+    }
+
+    if (!weight) return { hex: "#000000", count: 0 };
+    return {
+      hex: rgbToHex(Math.round(r / weight), Math.round(g / weight), Math.round(b / weight)),
+      count
+    };
+  }
+
+  function traceAlphaContours(data, width, height, threshold) {
+    const segments = [];
+    const starts = new Map();
+
+    function alphaAt(x, y) {
+      if (x < 0 || x >= width || y < 0 || y >= height) return 0;
+      return data[(y * width + x) * 4 + 3];
+    }
+
+    function interp(a, b) {
+      if (a === b) return 0.5;
+      return Math.max(0, Math.min(1, (threshold - a) / (b - a)));
+    }
+
+    function addSegment(a, b) {
+      if (!a || !b || pointDistanceSq(a, b) < 0.000001) return;
+      const segment = { a, b, used: false };
+      segments.push(segment);
+      addSegmentEndpoint(starts, a, segment);
+      addSegmentEndpoint(starts, b, segment);
+    }
+
+    for (let y = -1; y < height; y += 1) {
+      for (let x = -1; x < width; x += 1) {
+        const tl = alphaAt(x, y);
+        const tr = alphaAt(x + 1, y);
+        const br = alphaAt(x + 1, y + 1);
+        const bl = alphaAt(x, y + 1);
+        const inside = [
+          tl >= threshold,
+          tr >= threshold,
+          br >= threshold,
+          bl >= threshold
+        ];
+        const code = (inside[0] ? 1 : 0) | (inside[1] ? 2 : 0) | (inside[2] ? 4 : 0) | (inside[3] ? 8 : 0);
+        if (code === 0 || code === 15) continue;
+
+        const top = { x: x + interp(tl, tr), y };
+        const right = { x: x + 1, y: y + interp(tr, br) };
+        const bottom = { x: x + interp(bl, br), y: y + 1 };
+        const left = { x, y: y + interp(tl, bl) };
+
+        switch (code) {
+          case 1:
+            addSegment(left, top);
+            break;
+          case 2:
+            addSegment(top, right);
+            break;
+          case 3:
+            addSegment(left, right);
+            break;
+          case 4:
+            addSegment(right, bottom);
+            break;
+          case 5:
+            addSegment(left, bottom);
+            addSegment(top, right);
+            break;
+          case 6:
+            addSegment(top, bottom);
+            break;
+          case 7:
+            addSegment(left, bottom);
+            break;
+          case 8:
+            addSegment(bottom, left);
+            break;
+          case 9:
+            addSegment(top, bottom);
+            break;
+          case 10:
+            addSegment(top, left);
+            addSegment(right, bottom);
+            break;
+          case 11:
+            addSegment(right, bottom);
+            break;
+          case 12:
+            addSegment(right, left);
+            break;
+          case 13:
+            addSegment(top, right);
+            break;
+          case 14:
+            addSegment(left, top);
+            break;
+        }
+      }
+    }
+
+    return segmentsToLoops(segments, starts);
+  }
+
+  function addSegmentEndpoint(starts, point, segment) {
+    const key = pointKey(point.x, point.y);
+    let bucket = starts.get(key);
+    if (!bucket) {
+      bucket = [];
+      starts.set(key, bucket);
+    }
+    bucket.push(segment);
+  }
+
+  function segmentsToLoops(segments, starts) {
+    const loops = [];
+
+    for (let i = 0; i < segments.length; i += 1) {
+      const first = segments[i];
+      if (first.used) continue;
+
+      first.used = true;
+      const start = first.a;
+      let current = first.b;
+      const points = [start, current];
+      let guard = 0;
+
+      while (pointDistanceSq(current, start) > 0.000001 && guard < segments.length + 4) {
+        const next = findConnectedSegment(starts.get(pointKey(current.x, current.y)));
+        if (!next) break;
+        next.used = true;
+        current = pointDistanceSq(next.a, current) <= pointDistanceSq(next.b, current) ? next.b : next.a;
+        points.push(current);
+        guard += 1;
+      }
+
+      if (points.length > 3 && pointDistanceSq(points[points.length - 1], start) <= 0.000001) {
+        points.pop();
+        loops.push(points);
+      }
+    }
+
+    return loops;
+  }
+
+  function findConnectedSegment(candidates) {
+    if (!candidates) return null;
+    for (let i = 0; i < candidates.length; i += 1) {
+      if (!candidates[i].used) return candidates[i];
+    }
+    return null;
+  }
+
+  function removeDuplicatePoints(points) {
+    const result = [];
+    for (let i = 0; i < points.length; i += 1) {
+      const previous = result[result.length - 1];
+      if (!previous || pointDistanceSq(previous, points[i]) > 0.000001) {
+        result.push(points[i]);
+      }
+    }
+    if (result.length > 1 && pointDistanceSq(result[0], result[result.length - 1]) <= 0.000001) {
+      result.pop();
+    }
+    return result;
+  }
+
+  function pointDistanceSq(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy;
   }
 
   function quantizeImage(data, width, height, options) {
@@ -562,12 +798,12 @@
     const parts = [];
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(loops[i]);
+      const originalPointCount = points.length;
       if (tolerance > 0) {
         points = simplifyClosed(points, tolerance);
-        points = smoothClosed(points, Math.min(3, Math.max(1, Math.ceil(tolerance))), 0.22);
       }
       if (points.length < 3) continue;
-      parts.push(pointsToPath(points));
+      parts.push(tolerance > 0 && originalPointCount > 12 ? pointsToSmoothPath(points) : pointsToPath(points));
     }
     return parts.join("");
   }
@@ -759,30 +995,6 @@
     return px * px + py * py;
   }
 
-  function smoothClosed(points, iterations, ratio) {
-    if (points.length < 3 || iterations <= 0) return points.slice();
-    let result = points.slice();
-
-    for (let pass = 0; pass < iterations; pass += 1) {
-      const next = [];
-      for (let i = 0; i < result.length; i += 1) {
-        const current = result[i];
-        const following = result[(i + 1) % result.length];
-        next.push({
-          x: current.x * (1 - ratio) + following.x * ratio,
-          y: current.y * (1 - ratio) + following.y * ratio
-        });
-        next.push({
-          x: current.x * ratio + following.x * (1 - ratio),
-          y: current.y * ratio + following.y * (1 - ratio)
-        });
-      }
-      result = next;
-    }
-
-    return result;
-  }
-
   function pointsToPath(points) {
     const commands = [`M${trimNumber(points[0].x)} ${trimNumber(points[0].y)}`];
     for (let i = 1; i < points.length; i += 1) {
@@ -798,6 +1010,30 @@
     }
     commands.push("Z");
     return commands.join("");
+  }
+
+  function pointsToSmoothPath(points) {
+    const commands = [];
+    const lastIndex = points.length - 1;
+    const start = midpoint(points[lastIndex], points[0]);
+    commands.push(`M${trimNumber(start.x)} ${trimNumber(start.y)}`);
+
+    for (let i = 0; i < points.length; i += 1) {
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      const mid = midpoint(current, next);
+      commands.push(`Q${trimNumber(current.x)} ${trimNumber(current.y)} ${trimNumber(mid.x)} ${trimNumber(mid.y)}`);
+    }
+
+    commands.push("Z");
+    return commands.join("");
+  }
+
+  function midpoint(a, b) {
+    return {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2
+    };
   }
 
   function renderSvgPreview(svg) {
