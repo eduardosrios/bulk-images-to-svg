@@ -8,7 +8,6 @@
     fileName: document.getElementById("fileName"),
     sampleButton: document.getElementById("sampleButton"),
     downloadButton: document.getElementById("downloadButton"),
-    downloadSvgzButton: document.getElementById("downloadSvgzButton"),
     copyButton: document.getElementById("copyButton"),
     originalCanvas: document.getElementById("originalCanvas"),
     svgPreview: document.getElementById("svgPreview"),
@@ -100,11 +99,7 @@
 
     els.sampleButton.addEventListener("click", loadSample);
     els.downloadButton.addEventListener("click", downloadSvg);
-    els.downloadSvgzButton.addEventListener("click", downloadSvgz);
     els.copyButton.addEventListener("click", copySvg);
-    if (!("CompressionStream" in window)) {
-      els.downloadSvgzButton.title = "SVGZ requires browser CompressionStream support.";
-    }
   }
 
   function syncControlLabels() {
@@ -210,7 +205,6 @@
     setStatus("Tracing image...");
     els.outputBadge.textContent = "Working";
     els.downloadButton.disabled = true;
-    els.downloadSvgzButton.disabled = true;
     els.copyButton.disabled = true;
 
     window.requestAnimationFrame(function () {
@@ -243,7 +237,6 @@
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
         els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
-        els.downloadSvgzButton.disabled = !svg || !("CompressionStream" in window);
         els.copyButton.disabled = !svg;
         setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
       } catch (error) {
@@ -1022,7 +1015,7 @@
   }
 
   function pointsToPath(points) {
-    const commands = [`M${num(points[0].x)} ${num(points[0].y)}`];
+    const commands = [`M${nums(points[0].x, points[0].y)}`];
     for (let i = 1; i < points.length; i += 1) {
       const previous = points[i - 1];
       const point = points[i];
@@ -1033,7 +1026,7 @@
       } else if (nearlyZero(dx)) {
         commands.push(`v${num(dy)}`);
       } else {
-        commands.push(`l${num(dx)} ${num(dy)}`);
+        commands.push(`l${nums(dx, dy)}`);
       }
     }
     commands.push("Z");
@@ -1044,14 +1037,14 @@
     const commands = [];
     const lastIndex = points.length - 1;
     const start = midpoint(points[lastIndex], points[0]);
-    commands.push(`M${num(start.x)} ${num(start.y)}`);
+    commands.push(`M${nums(start.x, start.y)}`);
     let cursor = start;
 
     for (let i = 0; i < points.length; i += 1) {
       const current = points[i];
       const next = points[(i + 1) % points.length];
       const mid = midpoint(current, next);
-      commands.push(`q${num(current.x - cursor.x)} ${num(current.y - cursor.y)} ${num(mid.x - cursor.x)} ${num(mid.y - cursor.y)}`);
+      commands.push(`q${nums(current.x - cursor.x, current.y - cursor.y, mid.x - cursor.x, mid.y - cursor.y)}`);
       cursor = mid;
     }
 
@@ -1120,36 +1113,6 @@
     window.setTimeout(function () {
       URL.revokeObjectURL(url);
     }, 500);
-  }
-
-  async function downloadSvgz() {
-    if (!state.svg || !("CompressionStream" in window)) {
-      setStatus("SVGZ compression is not supported by this browser.");
-      return;
-    }
-
-    try {
-      const blob = await gzipText(state.svg);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${safeFileStem(state.sourceName)}.svgz`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(function () {
-        URL.revokeObjectURL(url);
-      }, 500);
-    } catch (error) {
-      setStatus("SVGZ compression failed.");
-    }
-  }
-
-  async function gzipText(text) {
-    const stream = new Blob([text], { type: "image/svg+xml;charset=utf-8" })
-      .stream()
-      .pipeThrough(new CompressionStream("gzip"));
-    return new Response(stream).blob();
   }
 
   async function copySvg() {
@@ -1235,12 +1198,22 @@
   }
 
   function trimNumber(value) {
-    return Number.parseFloat(Number(value).toFixed(3)).toString();
+    return Number.parseFloat(Number(value).toFixed(2)).toString();
   }
 
   function num(value) {
-    const rounded = trimNumber(value);
-    return rounded === "-0" ? "0" : rounded;
+    let rounded = trimNumber(value);
+    if (rounded === "-0") rounded = "0";
+    return rounded.replace(/^(-?)0\./, "$1.");
+  }
+
+  function nums() {
+    let result = "";
+    for (let i = 0; i < arguments.length; i += 1) {
+      const value = num(arguments[i]);
+      result += i === 0 || value.startsWith("-") ? value : ` ${value}`;
+    }
+    return result;
   }
 
   function nearlyZero(value) {
