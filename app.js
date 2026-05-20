@@ -233,7 +233,7 @@
           ? `${raster.width} x ${raster.height} capped`
           : `${raster.width} x ${raster.height}`;
         els.sizeStat.textContent = formatBytes(bytes);
-        els.colorCount.textContent = String(result.palette.length);
+        els.colorCount.textContent = String(uniquePalette(result.palette).length);
         els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
         els.copyButton.disabled = !svg;
@@ -1056,13 +1056,35 @@
 
   function renderPalette(palette) {
     els.swatches.replaceChildren();
-    for (let i = 0; i < palette.length; i += 1) {
+    const colors = uniquePalette(palette);
+    for (let i = 0; i < colors.length; i += 1) {
       const swatch = document.createElement("span");
       swatch.className = "swatch";
-      swatch.style.setProperty("--swatch", palette[i].hex);
-      swatch.title = palette[i].hex;
+      swatch.style.setProperty("--swatch", colors[i].hex);
+      swatch.title = colors[i].hex;
       els.swatches.appendChild(swatch);
     }
+  }
+
+  function uniquePalette(palette) {
+    const merged = new Map();
+    for (let i = 0; i < palette.length; i += 1) {
+      const color = palette[i];
+      const existing = merged.get(color.hex);
+      if (existing) {
+        existing.count += color.count || 0;
+        existing.opacity = Math.max(existing.opacity, color.opacity);
+      } else {
+        merged.set(color.hex, {
+          hex: color.hex,
+          opacity: color.opacity,
+          count: color.count || 0
+        });
+      }
+    }
+    return Array.from(merged.values()).sort(function (a, b) {
+      return b.count - a.count;
+    });
   }
 
   function downloadSvg() {
