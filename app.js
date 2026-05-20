@@ -29,12 +29,15 @@
     precisionValue: document.getElementById("precisionValue"),
     simplify: document.getElementById("simplify"),
     simplifyValue: document.getElementById("simplifyValue"),
+    numberPrecision: document.getElementById("numberPrecision"),
+    numberPrecisionValue: document.getElementById("numberPrecisionValue"),
     matte: document.getElementById("matte")
   };
 
   const MAX_PROCESSING_DIMENSION = 6144;
   const MAX_EXACT_SWATCHES = 256;
   const MONOCHROME_COLOR_DISTANCE = 18;
+  let outputNumberPrecision = 1;
 
   const state = {
     image: null,
@@ -86,7 +89,7 @@
       input.addEventListener("change", queueProcess);
     });
 
-    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.matte].forEach(function (control) {
+    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.numberPrecision, els.matte].forEach(function (control) {
       control.addEventListener("input", function () {
         syncControlLabels();
         queueProcess();
@@ -108,6 +111,7 @@
     els.resolutionValue.textContent = els.maxDimension.value;
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = Number(els.simplify.value).toFixed(1);
+    els.numberPrecisionValue.textContent = els.numberPrecision.value;
   }
 
   function setStatus(message) {
@@ -189,6 +193,7 @@
       maxDimension: Number(els.maxDimension.value),
       precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
+      numberPrecision: Number(els.numberPrecision.value),
       matte: els.matte.value
     };
   }
@@ -210,6 +215,7 @@
     window.requestAnimationFrame(function () {
       try {
         const options = readOptions();
+        outputNumberPrecision = clampNumberPrecision(options.numberPrecision);
         const raster = rasterizeForProcessing(state.image, options);
         const result = options.mode === "runs"
           ? buildExactResult(raster.imageData.data, raster.width, raster.height, options)
@@ -317,7 +323,7 @@
       if (tolerance > 0) points = simplifyClosed(points, tolerance);
       if (points.length < 3) continue;
       parts.push(tolerance > 0 ? pointsToSmoothPath(points, cursor) : pointsToPath(points, cursor));
-      cursor = tolerance > 0 ? smoothStartPoint(points) : points[0];
+      cursor = tolerance > 0 ? roundedPoint(smoothStartPoint(points)) : roundedPoint(points[0]);
     }
 
     return {
@@ -834,10 +840,10 @@
       if (points.length < 3) continue;
       if (tolerance > 0 && originalPointCount > 12) {
         parts.push(pointsToSmoothPath(points, cursor));
-        cursor = smoothStartPoint(points);
+        cursor = roundedPoint(smoothStartPoint(points));
       } else {
         parts.push(pointsToPath(points, cursor));
-        cursor = points[0];
+        cursor = roundedPoint(points[0]);
       }
     }
     return parts.join("");
@@ -1031,8 +1037,9 @@
   }
 
   function pointsToPath(points, cursor) {
-    const origin = cursor || { x: 0, y: 0 };
-    const commands = [`m${nums(points[0].x - origin.x, points[0].y - origin.y)}`];
+    const origin = roundedPoint(cursor || { x: 0, y: 0 });
+    const start = roundedPoint(points[0]);
+    const commands = [`m${nums(start.x - origin.x, start.y - origin.y)}`];
     let pendingCommand = "";
     let pendingX = 0;
     let pendingY = 0;
@@ -1047,7 +1054,7 @@
         commands.push(`v${num(pendingY)}`);
       } else {
         if (canUseImplicitLine) {
-          commands[commands.length - 1] += numsArray(pendingPairs);
+          commands[commands.length - 1] = appendNumberData(commands[commands.length - 1], numsArray(pendingPairs));
         } else {
           commands.push(`l${numsArray(pendingPairs)}`);
         }
@@ -1087,8 +1094,8 @@
     }
 
     for (let i = 1; i < points.length; i += 1) {
-      const previous = points[i - 1];
-      const point = points[i];
+      const previous = roundedPoint(points[i - 1]);
+      const point = roundedPoint(points[i]);
       const dx = point.x - previous.x;
       const dy = point.y - previous.y;
       if (nearlyZero(dy)) {
@@ -1113,15 +1120,15 @@
   function pointsToSmoothPath(points, previousCursor) {
     const commands = [];
     const lastIndex = points.length - 1;
-    const start = midpoint(points[lastIndex], points[0]);
-    const origin = previousCursor || { x: 0, y: 0 };
+    const start = roundedPoint(midpoint(points[lastIndex], points[0]));
+    const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
     commands.push(`m${nums(start.x - origin.x, start.y - origin.y)}`);
     let cursor = start;
 
     for (let i = 0; i < points.length; i += 1) {
-      const current = points[i];
+      const current = roundedPoint(points[i]);
       const next = points[(i + 1) % points.length];
-      const mid = midpoint(current, next);
+      const mid = roundedPoint(midpoint(current, next));
       commands.push(`q${nums(current.x - cursor.x, current.y - cursor.y, mid.x - cursor.x, mid.y - cursor.y)}`);
       cursor = mid;
     }
@@ -1132,6 +1139,13 @@
 
   function smoothStartPoint(points) {
     return midpoint(points[points.length - 1], points[0]);
+  }
+
+  function roundedPoint(point) {
+    return {
+      x: roundPathNumber(point.x),
+      y: roundPathNumber(point.y)
+    };
   }
 
   function midpoint(a, b) {
@@ -1283,8 +1297,21 @@
     return Number.parseFloat(Number(value).toFixed(2)).toString();
   }
 
+  function trimPathNumber(value) {
+    return roundPathNumber(value).toString();
+  }
+
+  function roundPathNumber(value) {
+    const rounded = Number.parseFloat(Number(value).toFixed(outputNumberPrecision));
+    return Object.is(rounded, -0) ? 0 : rounded;
+  }
+
+  function clampNumberPrecision(value) {
+    return Math.max(1, Math.min(8, Number.isFinite(value) ? Math.round(value) : 1));
+  }
+
   function num(value) {
-    let rounded = trimNumber(value);
+    let rounded = trimPathNumber(value);
     if (rounded === "-0") rounded = "0";
     return rounded.replace(/^(-?)0\./, "$1.");
   }
@@ -1302,6 +1329,13 @@
       previous = value;
     }
     return result;
+  }
+
+  function appendNumberData(current, next) {
+    const previous = current.match(/-?(?:\d*\.\d+|\d+)$/);
+    const incoming = next.match(/-?(?:\d*\.\d+|\d+)/);
+    if (!previous || !incoming || !needsNumberSeparator(previous[0], incoming[0])) return current + next;
+    return `${current} ${next}`;
   }
 
   function needsNumberSeparator(previous, current) {
