@@ -292,7 +292,7 @@
       const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance);
       if (!d) continue;
       const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
-      paths.push(`<path fill="${color.hex}"${opacity} fill-rule="evenodd" d="${d}"/>`);
+      paths.push(`<path${fillAttr(color.hex)}${opacity} fill-rule="evenodd" d="${d}"/>`);
     }
 
     return {
@@ -311,7 +311,7 @@
     let pointCount = 0;
 
     for (let i = 0; i < loops.length; i += 1) {
-      let points = removeDuplicatePoints(loops[i]);
+      let points = removeCollinear(removeDuplicatePoints(loops[i]));
       pointCount += points.length;
       if (tolerance > 0) points = simplifyClosed(points, tolerance);
       if (points.length < 3) continue;
@@ -319,7 +319,7 @@
     }
 
     return {
-      paths: parts.length ? [`<path fill="${color.hex}" fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
+      paths: parts.length ? [`<path${fillAttr(color.hex)} fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
       palette: [{ hex: color.hex, opacity: 1, count: color.count }],
       activePixels: color.count,
       sourcePoints: pointCount
@@ -386,7 +386,7 @@
       const key = sortedKeys[i];
       const style = styles.get(key);
       const opacity = style.opacity < 0.995 ? ` fill-opacity="${trimNumber(style.opacity)}"` : "";
-      paths.push(`<path fill="${style.hex}"${opacity} d="${style.segments.join("")}"/>`);
+      paths.push(`<path${fillAttr(style.hex)}${opacity} d="${style.segments.join("")}"/>`);
       if (palette.length < MAX_EXACT_SWATCHES) {
         palette.push({
           hex: style.hex,
@@ -775,7 +775,14 @@
   function buildSvg(input) {
     const escapedName = escapeXml(input.sourceName.replace(/\.[^.]+$/, "") || "converted");
     const label = escapedName ? ` aria-label="${escapedName}"` : "";
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}" viewBox="0 0 ${input.width} ${input.height}" shape-rendering="geometricPrecision" role="img"${label}>${input.paths.join("")}</svg>`;
+    const viewBox = input.width === input.sourceWidth && input.height === input.sourceHeight
+      ? ""
+      : ` viewBox="0 0 ${input.width} ${input.height}"`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}"${viewBox}${label} shape-rendering="geometricPrecision">${input.paths.join("")}</svg>`;
+  }
+
+  function fillAttr(hex) {
+    return hex === "#000" ? "" : ` fill="${hex}"`;
   }
 
   function buildRunPath(indexMap, width, height, colorIndex) {
@@ -1016,21 +1023,75 @@
 
   function pointsToPath(points) {
     const commands = [`M${nums(points[0].x, points[0].y)}`];
+    let pendingCommand = "";
+    let pendingX = 0;
+    let pendingY = 0;
+    let pendingPairs = [];
+
+    function flushPending() {
+      if (!pendingCommand) return;
+      if (pendingCommand === "h") {
+        commands.push(`h${num(pendingX)}`);
+      } else if (pendingCommand === "v") {
+        commands.push(`v${num(pendingY)}`);
+      } else {
+        commands.push(`l${numsArray(pendingPairs)}`);
+      }
+      pendingCommand = "";
+      pendingX = 0;
+      pendingY = 0;
+      pendingPairs = [];
+    }
+
+    function queueSegment(command, dx, dy) {
+      if (nearlyZero(dx) && nearlyZero(dy)) return;
+      if (command === "l") {
+        if (pendingCommand !== "l") {
+          flushPending();
+          pendingCommand = "l";
+        }
+        const lastIndex = pendingPairs.length - 2;
+        if (lastIndex >= 0 && sameLineDirection(pendingPairs[lastIndex], pendingPairs[lastIndex + 1], dx, dy)) {
+          pendingPairs[lastIndex] += dx;
+          pendingPairs[lastIndex + 1] += dy;
+        } else {
+          pendingPairs.push(dx, dy);
+        }
+        return;
+      }
+      if (pendingCommand === command) {
+        pendingX += dx;
+        pendingY += dy;
+        return;
+      }
+      flushPending();
+      pendingCommand = command;
+      pendingX = dx;
+      pendingY = dy;
+    }
+
     for (let i = 1; i < points.length; i += 1) {
       const previous = points[i - 1];
       const point = points[i];
       const dx = point.x - previous.x;
       const dy = point.y - previous.y;
       if (nearlyZero(dy)) {
-        commands.push(`h${num(dx)}`);
+        queueSegment("h", dx, 0);
       } else if (nearlyZero(dx)) {
-        commands.push(`v${num(dy)}`);
+        queueSegment("v", 0, dy);
       } else {
-        commands.push(`l${nums(dx, dy)}`);
+        queueSegment("l", dx, dy);
       }
     }
+    flushPending();
     commands.push("Z");
     return commands.join("");
+  }
+
+  function sameLineDirection(ax, ay, bx, by) {
+    const cross = ax * by - ay * bx;
+    const dot = ax * bx + ay * by;
+    return nearlyZero(cross) && dot > 0;
   }
 
   function pointsToSmoothPath(points) {
@@ -1208,12 +1269,23 @@
   }
 
   function nums() {
+    return numsArray(arguments);
+  }
+
+  function numsArray(values) {
     let result = "";
-    for (let i = 0; i < arguments.length; i += 1) {
-      const value = num(arguments[i]);
-      result += i === 0 || value.startsWith("-") ? value : ` ${value}`;
+    let previous = "";
+    for (let i = 0; i < values.length; i += 1) {
+      const value = num(values[i]);
+      result += needsNumberSeparator(previous, value) ? ` ${value}` : value;
+      previous = value;
     }
     return result;
+  }
+
+  function needsNumberSeparator(previous, current) {
+    if (!previous || current.startsWith("-")) return false;
+    return !(current.startsWith(".") && previous.includes("."));
   }
 
   function nearlyZero(value) {
