@@ -8,6 +8,7 @@
     fileName: document.getElementById("fileName"),
     sampleButton: document.getElementById("sampleButton"),
     downloadButton: document.getElementById("downloadButton"),
+    downloadSvgzButton: document.getElementById("downloadSvgzButton"),
     copyButton: document.getElementById("copyButton"),
     originalCanvas: document.getElementById("originalCanvas"),
     svgPreview: document.getElementById("svgPreview"),
@@ -99,7 +100,11 @@
 
     els.sampleButton.addEventListener("click", loadSample);
     els.downloadButton.addEventListener("click", downloadSvg);
+    els.downloadSvgzButton.addEventListener("click", downloadSvgz);
     els.copyButton.addEventListener("click", copySvg);
+    if (!("CompressionStream" in window)) {
+      els.downloadSvgzButton.title = "SVGZ requires browser CompressionStream support.";
+    }
   }
 
   function syncControlLabels() {
@@ -205,6 +210,7 @@
     setStatus("Tracing image...");
     els.outputBadge.textContent = "Working";
     els.downloadButton.disabled = true;
+    els.downloadSvgzButton.disabled = true;
     els.copyButton.disabled = true;
 
     window.requestAnimationFrame(function () {
@@ -237,6 +243,7 @@
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
         els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
+        els.downloadSvgzButton.disabled = !svg || !("CompressionStream" in window);
         els.copyButton.disabled = !svg;
         setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
       } catch (error) {
@@ -292,7 +299,7 @@
       const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance);
       if (!d) continue;
       const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
-      paths.push(`  <path fill="${color.hex}"${opacity} fill-rule="evenodd" d="${d}"/>`);
+      paths.push(`<path fill="${color.hex}"${opacity} fill-rule="evenodd" d="${d}"/>`);
     }
 
     return {
@@ -319,7 +326,7 @@
     }
 
     return {
-      paths: parts.length ? [`  <path fill="${color.hex}" fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
+      paths: parts.length ? [`<path fill="${color.hex}" fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
       palette: [{ hex: color.hex, opacity: 1, count: color.count }],
       activePixels: color.count,
       sourcePoints: pointCount
@@ -386,7 +393,7 @@
       const key = sortedKeys[i];
       const style = styles.get(key);
       const opacity = style.opacity < 0.995 ? ` fill-opacity="${trimNumber(style.opacity)}"` : "";
-      paths.push(`  <path fill="${style.hex}"${opacity} d="${style.segments.join("")}"/>`);
+      paths.push(`<path fill="${style.hex}"${opacity} d="${style.segments.join("")}"/>`);
       if (palette.length < MAX_EXACT_SWATCHES) {
         palette.push({
           hex: style.hex,
@@ -774,14 +781,8 @@
 
   function buildSvg(input) {
     const escapedName = escapeXml(input.sourceName.replace(/\.[^.]+$/, "") || "converted");
-
-    return [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}" viewBox="0 0 ${input.width} ${input.height}" shape-rendering="geometricPrecision" role="img" aria-label="${escapedName}">`,
-      `  <title>${escapedName}</title>`,
-      input.paths.join("\n"),
-      "</svg>"
-    ].filter(Boolean).join("\n");
+    const label = escapedName ? ` aria-label="${escapedName}"` : "";
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${input.sourceWidth}" height="${input.sourceHeight}" viewBox="0 0 ${input.width} ${input.height}" shape-rendering="geometricPrecision" role="img"${label}>${input.paths.join("")}</svg>`;
   }
 
   function buildRunPath(indexMap, width, height, colorIndex) {
@@ -1021,16 +1022,18 @@
   }
 
   function pointsToPath(points) {
-    const commands = [`M${trimNumber(points[0].x)} ${trimNumber(points[0].y)}`];
+    const commands = [`M${num(points[0].x)} ${num(points[0].y)}`];
     for (let i = 1; i < points.length; i += 1) {
       const previous = points[i - 1];
       const point = points[i];
-      if (point.y === previous.y) {
-        commands.push(`H${trimNumber(point.x)}`);
-      } else if (point.x === previous.x) {
-        commands.push(`V${trimNumber(point.y)}`);
+      const dx = point.x - previous.x;
+      const dy = point.y - previous.y;
+      if (nearlyZero(dy)) {
+        commands.push(`h${num(dx)}`);
+      } else if (nearlyZero(dx)) {
+        commands.push(`v${num(dy)}`);
       } else {
-        commands.push(`L${trimNumber(point.x)} ${trimNumber(point.y)}`);
+        commands.push(`l${num(dx)} ${num(dy)}`);
       }
     }
     commands.push("Z");
@@ -1041,13 +1044,15 @@
     const commands = [];
     const lastIndex = points.length - 1;
     const start = midpoint(points[lastIndex], points[0]);
-    commands.push(`M${trimNumber(start.x)} ${trimNumber(start.y)}`);
+    commands.push(`M${num(start.x)} ${num(start.y)}`);
+    let cursor = start;
 
     for (let i = 0; i < points.length; i += 1) {
       const current = points[i];
       const next = points[(i + 1) % points.length];
       const mid = midpoint(current, next);
-      commands.push(`Q${trimNumber(current.x)} ${trimNumber(current.y)} ${trimNumber(mid.x)} ${trimNumber(mid.y)}`);
+      commands.push(`q${num(current.x - cursor.x)} ${num(current.y - cursor.y)} ${num(mid.x - cursor.x)} ${num(mid.y - cursor.y)}`);
+      cursor = mid;
     }
 
     commands.push("Z");
@@ -1117,6 +1122,36 @@
     }, 500);
   }
 
+  async function downloadSvgz() {
+    if (!state.svg || !("CompressionStream" in window)) {
+      setStatus("SVGZ compression is not supported by this browser.");
+      return;
+    }
+
+    try {
+      const blob = await gzipText(state.svg);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeFileStem(state.sourceName)}.svgz`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 500);
+    } catch (error) {
+      setStatus("SVGZ compression failed.");
+    }
+  }
+
+  async function gzipText(text) {
+    const stream = new Blob([text], { type: "image/svg+xml;charset=utf-8" })
+      .stream()
+      .pipeThrough(new CompressionStream("gzip"));
+    return new Response(stream).blob();
+  }
+
   async function copySvg() {
     if (!state.svg) return;
     try {
@@ -1184,7 +1219,11 @@
   }
 
   function rgbToHex(r, g, b) {
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    const long = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    if (long[1] === long[2] && long[3] === long[4] && long[5] === long[6]) {
+      return `#${long[1]}${long[3]}${long[5]}`;
+    }
+    return long;
   }
 
   function toHex(value) {
@@ -1197,6 +1236,15 @@
 
   function trimNumber(value) {
     return Number.parseFloat(Number(value).toFixed(3)).toString();
+  }
+
+  function num(value) {
+    const rounded = trimNumber(value);
+    return rounded === "-0" ? "0" : rounded;
+  }
+
+  function nearlyZero(value) {
+    return Math.abs(value) < 0.0005;
   }
 
   function formatBytes(bytes) {

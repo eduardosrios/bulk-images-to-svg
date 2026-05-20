@@ -21,6 +21,8 @@ For compact icon-like PNGs, start with `Trace`, `Precision 4x` or `10x`, and `Si
 
 For the closest visual match, use `Exact`. Exact mode preserves per-pixel RGB and opacity instead of reducing the image to the selected palette, but it can produce larger SVGs when many semi-transparent edge pixels are kept. Raise `Alpha cutoff` to reduce file size.
 
+The generated SVG is minified automatically with compact markup, shortened colors, and relative path commands. Browsers that support `CompressionStream` also show `Download SVGZ`, which saves the same SVG as gzip-compressed `.svgz`. For additional build-time optimization outside the app, SVGO is the standard Node.js optimizer.
+
 ## Files
 
 - `index.html`: static app shell.
