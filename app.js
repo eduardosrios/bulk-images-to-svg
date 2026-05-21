@@ -7,6 +7,8 @@
     fileInput: document.getElementById("fileInput"),
     dropZone: document.getElementById("dropZone"),
     fileName: document.getElementById("fileName"),
+    bulkItems: document.getElementById("bulkItems"),
+    imageCount: document.getElementById("imageCount"),
     sampleButton: document.getElementById("sampleButton"),
     downloadButton: document.getElementById("downloadButton"),
     copyButton: document.getElementById("copyButton"),
@@ -57,6 +59,9 @@
     sourceBytes: 0,
     svg: "",
     palette: [],
+    images: [],
+    activeImageId: "",
+    nextImageId: 1,
     processing: false,
     needsProcess: false,
     pendingTimer: 0
@@ -73,15 +78,16 @@
     window.addEventListener("resize", updateStickyOffset);
 
     els.fileInput.addEventListener("change", function () {
-      const file = els.fileInput.files && els.fileInput.files[0];
-      if (file) loadFile(file);
+      if (els.fileInput.files && els.fileInput.files.length) {
+        loadFiles(els.fileInput.files, { replace: true });
+      }
     });
 
     document.addEventListener("paste", function (event) {
       const file = pastedImageFile(event);
       if (!file) return;
       event.preventDefault();
-      loadFile(file);
+      loadFiles([file], { replace: state.images.length === 0 });
     });
 
     ["dragenter", "dragover"].forEach(function (name) {
@@ -99,8 +105,9 @@
     });
 
     els.dropZone.addEventListener("drop", function (event) {
-      const file = event.dataTransfer.files && event.dataTransfer.files[0];
-      if (file) loadFile(file);
+      if (event.dataTransfer.files && event.dataTransfer.files.length) {
+        loadFiles(event.dataTransfer.files, { replace: true });
+      }
     });
 
     document.querySelectorAll("input[name='mode']").forEach(function (input) {
@@ -180,21 +187,54 @@
     document.documentElement.style.setProperty("--preview-sticky-top", `${Math.ceil(topbarHeight + 14)}px`);
   }
 
-  function loadFile(file) {
-    if (!isSupportedImageFile(file)) {
+  async function loadFiles(fileList, options) {
+    const files = Array.prototype.slice.call(fileList || []).filter(isSupportedImageFile);
+    if (!files.length) {
       setStatus(`Use a ${SUPPORTED_IMAGE_LABEL} image.`);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = function () {
-      loadImage(String(reader.result), file.name, file.size);
-    };
-    reader.onerror = function () {
-      setStatus("The image could not be read.");
-    };
-    setStatus("Reading image...");
-    reader.readAsDataURL(file);
+    if (options && options.replace) {
+      resetBatch();
+    }
+
+    setStatus(`Reading ${formatImageCount(files.length)}...`);
+    let loaded = 0;
+    let firstLoadedId = "";
+
+    for (const file of files) {
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        const image = await decodeImage(dataUrl);
+        const record = createImageRecord({
+          name: file.name || "image",
+          sourceBytes: file.size || 0,
+          dataUrl,
+          image
+        });
+        state.images.push(record);
+        loaded += 1;
+        if (!firstLoadedId) firstLoadedId = record.id;
+        if (!state.activeImageId) {
+          activateImage(record.id);
+        } else {
+          renderBulkList();
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    if (!loaded) {
+      setStatus("The selected images could not be read.");
+      renderBulkList();
+      return;
+    }
+
+    if (firstLoadedId && (!state.activeImageId || options && options.replace)) {
+      activateImage(firstLoadedId);
+    }
+    setStatus(`${formatImageCount(loaded)} loaded.`);
   }
 
   function isSupportedImageFile(file) {
@@ -202,28 +242,160 @@
     return SUPPORTED_IMAGE_MIME_TYPES.has(type) || SUPPORTED_IMAGE_EXTENSION.test(file.name || "");
   }
 
-  function loadImage(src, name, sourceBytes, revokeAfterLoad) {
-    const image = new Image();
-    image.onload = function () {
-      state.image = image;
-      state.sourceName = name || "image";
-      state.sourceWidth = image.naturalWidth || image.width;
-      state.sourceHeight = image.naturalHeight || image.height;
-      state.sourceBytes = sourceBytes || 0;
-      els.fileName.textContent = state.sourceName;
-      els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
-      els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
-      els.originalBadge.textContent = "Loaded";
-      if (els.appShell) els.appShell.classList.remove("is-empty");
-      renderOriginalPreview(image);
-      if (revokeAfterLoad) URL.revokeObjectURL(src);
-      queueProcess(0);
-    };
-    image.onerror = function () {
-      if (revokeAfterLoad) URL.revokeObjectURL(src);
+  async function loadImage(src, name, sourceBytes, revokeAfterLoad) {
+    try {
+      const image = await decodeImage(src);
+      resetBatch();
+      const record = createImageRecord({
+        name: name || "image",
+        sourceBytes: sourceBytes || 0,
+        dataUrl: src,
+        image
+      });
+      state.images.push(record);
+      activateImage(record.id);
+      setStatus(`${record.name} loaded.`);
+    } catch (error) {
       setStatus("The image could not be decoded.");
+    } finally {
+      if (revokeAfterLoad) URL.revokeObjectURL(src);
+    }
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result));
+      };
+      reader.onerror = function () {
+        reject(new Error("The image could not be read."));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function decodeImage(src) {
+    return new Promise(function (resolve, reject) {
+      const image = new Image();
+      image.onload = function () {
+        resolve(image);
+      };
+      image.onerror = function () {
+        reject(new Error("The image could not be decoded."));
+      };
+      image.src = src;
+    });
+  }
+
+  function createImageRecord(details) {
+    const image = details.image;
+    return {
+      id: `image-${state.nextImageId++}`,
+      name: details.name || "image",
+      sourceBytes: details.sourceBytes || 0,
+      dataUrl: details.dataUrl,
+      image,
+      sourceWidth: image.naturalWidth || image.width,
+      sourceHeight: image.naturalHeight || image.height,
+      svg: "",
+      palette: [],
+      traceText: "-",
+      svgSizeText: "-",
+      colorCount: 0,
+      status: "Loaded"
     };
-    image.src = src;
+  }
+
+  function resetBatch() {
+    window.clearTimeout(state.pendingTimer);
+    state.images = [];
+    state.activeImageId = "";
+    state.image = null;
+    state.sourceName = "image";
+    state.sourceWidth = 0;
+    state.sourceHeight = 0;
+    state.sourceBytes = 0;
+    state.svg = "";
+    state.palette = [];
+    state.needsProcess = false;
+    els.downloadButton.disabled = true;
+    els.copyButton.disabled = true;
+    els.outputBadge.textContent = "Idle";
+    els.originalBadge.textContent = "Waiting";
+    els.sourceStat.textContent = "-";
+    els.traceStat.textContent = "-";
+    els.originalSizeStat.textContent = "-";
+    els.sizeStat.textContent = "-";
+    els.colorCount.textContent = "0";
+    els.swatches.replaceChildren();
+    els.svgPreview.replaceChildren();
+    els.svgPreview.classList.add(EMPTY_PREVIEW_CLASS);
+    els.originalCanvas.classList.remove("has-image");
+    renderBulkList();
+  }
+
+  function activateImage(id) {
+    const record = imageRecordById(id);
+    if (!record) return;
+    state.activeImageId = record.id;
+    state.image = record.image;
+    state.sourceName = record.name;
+    state.sourceWidth = record.sourceWidth;
+    state.sourceHeight = record.sourceHeight;
+    state.sourceBytes = record.sourceBytes;
+    state.svg = record.svg || "";
+    state.palette = record.palette || [];
+    els.fileName.textContent = state.sourceName;
+    els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
+    els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
+    els.originalBadge.textContent = "Loaded";
+    els.traceStat.textContent = record.traceText || "-";
+    els.sizeStat.textContent = record.svgSizeText || "-";
+    els.colorCount.textContent = String(record.colorCount || 0);
+    renderOriginalPreview(record.image);
+    renderBulkList();
+    if (els.appShell) els.appShell.classList.remove("is-empty");
+    queueProcess(0);
+  }
+
+  function imageRecordById(id) {
+    return state.images.find(function (record) {
+      return record.id === id;
+    });
+  }
+
+  function formatImageCount(count) {
+    return `${count} image${count === 1 ? "" : "s"}`;
+  }
+
+  function renderBulkList() {
+    if (!els.bulkItems || !els.imageCount) return;
+    els.imageCount.textContent = String(state.images.length);
+    els.bulkItems.replaceChildren();
+    for (const record of state.images) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `bulk-item${record.id === state.activeImageId ? " is-active" : ""}`;
+      button.addEventListener("click", function () {
+        activateImage(record.id);
+      });
+
+      const name = document.createElement("span");
+      name.className = "bulk-item-name";
+      name.textContent = record.name;
+
+      const details = document.createElement("span");
+      details.className = "bulk-item-details";
+      details.textContent = `${record.sourceWidth} x ${record.sourceHeight} / ${record.svgSizeText || "-"}`;
+
+      const status = document.createElement("span");
+      status.className = "bulk-item-status";
+      status.textContent = record.status || "Loaded";
+
+      button.append(name, details, status);
+      els.bulkItems.appendChild(button);
+    }
   }
 
   function renderOriginalPreview(image) {
@@ -274,6 +446,12 @@
 
     state.processing = true;
     state.needsProcess = false;
+    const processingImageId = state.activeImageId;
+    const processingRecord = imageRecordById(processingImageId);
+    if (processingRecord) {
+      processingRecord.status = "Working";
+      renderBulkList();
+    }
     setStatus("Tracing image...");
     els.outputBadge.textContent = "Working";
     els.downloadButton.disabled = true;
@@ -311,11 +489,26 @@
         els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
         els.copyButton.disabled = !svg;
+        const finishedRecord = imageRecordById(processingImageId);
+        if (finishedRecord) {
+          finishedRecord.svg = svg;
+          finishedRecord.palette = result.palette;
+          finishedRecord.traceText = els.traceStat.textContent;
+          finishedRecord.svgSizeText = els.sizeStat.textContent;
+          finishedRecord.colorCount = uniquePalette(result.palette).length;
+          finishedRecord.status = result.activePixels ? "Ready" : "Empty";
+          renderBulkList();
+        }
         setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
       } catch (error) {
         console.error(error);
         setStatus(error && error.message ? error.message : "Conversion failed.");
         els.outputBadge.textContent = "Error";
+        const erroredRecord = imageRecordById(processingImageId);
+        if (erroredRecord) {
+          erroredRecord.status = "Error";
+          renderBulkList();
+        }
       } finally {
         state.processing = false;
         if (state.needsProcess) {

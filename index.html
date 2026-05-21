@@ -34,7 +34,7 @@
       <main class="workspace">
         <aside class="control-panel" aria-label="Converter controls">
           <label class="drop-zone" id="dropZone">
-            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,.png,.jpg,.jpeg,.gif,.webp,.avif">
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,.png,.jpg,.jpeg,.gif,.webp,.avif" multiple>
             <span class="empty-upload-hero" aria-hidden="true">
               <span class="empty-upload-title">Trace Pixels To Vectors in Full Color</span>
               <span class="empty-upload-subtitle">Convert PNG, JPG, JPEG, GIF, WebP, and AVIF images to clean SVG vectors.</span>
@@ -66,7 +66,7 @@
             </span>
             <span class="empty-upload-actions" aria-hidden="true">
               <span>or you can</span>
-              <span class="empty-pick-button"><span class="upload-arrow">↑</span> Pick image to vectorize</span>
+              <span class="empty-pick-button"><span class="upload-arrow">^</span> Pick images to vectorize</span>
               <span>or press</span>
               <span class="keycap">Ctrl</span>
               <span>+</span>
@@ -75,6 +75,14 @@
             <span class="drop-title">Image input</span>
             <span class="drop-name" id="fileName">Drop or browse</span>
           </label>
+
+          <section class="bulk-list" aria-label="Uploaded images">
+            <div class="group-header">
+              <h2>Images</h2>
+              <output id="imageCount">0</output>
+            </div>
+            <div class="bulk-items" id="bulkItems"></div>
+          </section>
 
           <section class="control-group" aria-labelledby="modeLabel">
             <div class="group-header">
