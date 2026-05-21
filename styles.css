@@ -844,6 +844,10 @@ select {
   background-size: 20px 20px;
 }
 
+.checker.is-black-background {
+  background: #000000;
+}
+
 canvas,
 #svgPreview svg {
   max-width: min(90%, 780px);

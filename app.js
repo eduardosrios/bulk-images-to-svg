@@ -193,9 +193,10 @@
   }
 
   function syncPreviewBackground() {
-    const transparent = els.matte.value === "transparent";
+    const background = els.matte.value;
     els.previewStages.forEach(function (stage) {
-      stage.classList.toggle("is-transparent-background", transparent);
+      stage.classList.toggle("is-transparent-background", background === "transparent");
+      stage.classList.toggle("is-black-background", background === "black");
     });
   }
 
