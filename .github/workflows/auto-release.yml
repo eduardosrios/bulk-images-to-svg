@@ -24,11 +24,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           short_sha="${SHA::7}"
-          tag="release-${short_sha}"
-          title="Release ${short_sha}"
+          version="1.0.${RUN_NUMBER}"
+          tag="v${version}"
+          title="${version}"
           subject="$(git log -1 --pretty=%s)"
+          date="$(date -u +"%Y-%m-%d")"
+
+          cat > release-notes.md <<EOF
+          Public release for Bulk Image to SVG.
+
+          Commit: ${short_sha}
+          Date: ${date}
+          Change: ${subject}
+
+          Highlights:
+
+          - Bulk image uploader for PNG, JPG, JPEG, GIF, WebP, and AVIF.
+          - Client-side image to SVG conversion with Trace and Exact conversion paths.
+          - Optimized SVG output with path simplification and compact number precision.
+          - Individual SVG download, copy SVG, and Download All SVGs as ZIP.
+          - Interactive palette swatches for customizing generated SVG colors.
+          - Synchronized Original and SVG Output previews with shared zoom.
+          - Responsive black and white editor UI ready for GitHub Pages.
+          EOF
 
           if ! git rev-parse "$tag" >/dev/null 2>&1; then
             git tag "$tag" "$SHA"
@@ -44,4 +65,4 @@ jobs:
             --repo "$REPO" \
             --target "$SHA" \
             --title "$title" \
-            --notes "Automatic release for commit ${short_sha}: ${subject}"
+            --notes-file release-notes.md
