@@ -506,6 +506,10 @@ h1 {
   margin-top: 22px;
 }
 
+.modal-actions .button {
+  border-radius: 5px;
+}
+
 .drop-zone,
 .control-group,
 .image-navigator,
