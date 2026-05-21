@@ -307,6 +307,7 @@ h1 {
   align-items: center;
   gap: 16px;
   margin-bottom: clamp(28px, 4vw, 42px);
+  margin-top: 10px;
 }
 
 .empty-upload-title {
