@@ -138,7 +138,10 @@
   function setControlDisabled(control, disabled) {
     control.disabled = disabled;
     const group = control.closest(".control-group");
-    if (group) group.classList.toggle("is-disabled", disabled);
+    if (group) {
+      group.hidden = disabled;
+      group.classList.toggle("is-disabled", disabled);
+    }
   }
 
   function isExactMode() {
