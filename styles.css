@@ -496,8 +496,12 @@ h1 {
 
 .modal p {
   margin-top: 14px;
-  color: var(--muted);
+  color: #000000;
   line-height: 1.45;
+}
+
+.modal p strong {
+  color: #000000;
 }
 
 .modal-actions {
