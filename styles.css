@@ -746,8 +746,8 @@ select {
   top: var(--preview-sticky-top);
   align-self: start;
   max-height: calc(100vh - var(--preview-sticky-top) - 14px);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .preview-pane {
