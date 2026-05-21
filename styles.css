@@ -547,8 +547,8 @@ h1 {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 16px;
-  border: 1px dashed rgba(23, 25, 21, 0.42);
+  padding: 0;
+  border: 0;
   border-radius: 4px;
 }
 
