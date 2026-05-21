@@ -746,6 +746,12 @@ select {
   margin-top: 12px;
 }
 
+.palette-help span {
+  color: var(--muted);
+  margin-top: 5px;
+  display: block;
+}
+
 .swatch {
   aspect-ratio: 1;
   min-width: 0;
