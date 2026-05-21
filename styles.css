@@ -52,10 +52,9 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 18px clamp(16px, 3vw, 34px);
-  border-bottom: 2px solid var(--line);
-  background: rgba(255, 254, 250, 0.92);
-  backdrop-filter: blur(14px);
+  padding: 30px clamp(20px, 2.7vw, 52px);
+  border-bottom: 2px solid #d7d7d7;
+  background: #000000;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -65,12 +64,12 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 22px;
   flex: 1 1 auto;
   border: 0;
   padding: 0;
   background: transparent;
-  color: inherit;
+  color: #ffffff;
   text-align: left;
   box-shadow: none;
 }
@@ -80,11 +79,12 @@ button {
 }
 
 .brand-mark {
-  width: 42px;
+  width: 58px;
   aspect-ratio: 1;
   flex: 0 0 auto;
   display: block;
   object-fit: contain;
+  filter: brightness(0) invert(1);
 }
 
 h1,
@@ -94,16 +94,13 @@ p {
 }
 
 h1 {
-  font-size: clamp(1.35rem, 2.8vw, 2.15rem);
+  font-size: clamp(1.7rem, 2.6vw, 2.6rem);
   line-height: 0.94;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .brand p {
-  margin-top: 7px;
-  color: var(--muted);
-  font-size: 0.82rem;
-  text-transform: uppercase;
+  display: none;
 }
 
 .top-actions {
@@ -116,24 +113,24 @@ h1 {
 }
 
 .button {
-  min-height: 42px;
-  border: 2px solid var(--line);
+  min-height: 52px;
+  border: 2px solid #ffffff;
   border-radius: 4px;
-  padding: 0 16px;
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: 3px 3px 0 var(--line);
+  padding: 0 20px;
+  background: #000000;
+  color: #ffffff;
+  box-shadow: 5px 5px 0 rgba(255, 255, 255, 0.78);
   transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .button:hover:not(:disabled) {
   transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 var(--line);
+  box-shadow: 7px 7px 0 rgba(255, 255, 255, 0.78);
 }
 
 .button:active:not(:disabled) {
   transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--line);
+  box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.78);
 }
 
 .button:disabled {
@@ -142,11 +139,11 @@ h1 {
 }
 
 .button.primary {
-  background: var(--acid);
+  background: #000000;
 }
 
 .button.secondary {
-  background: var(--panel);
+  background: #000000;
 }
 
 .visually-hidden {
