@@ -291,14 +291,18 @@ h1 {
 .format-card::before {
   content: "";
   position: absolute;
-  inset-block-start: -3px;
-  inset-inline-end: -3px;
-  width: 28px;
-  height: 28px;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  width: 21px;
+  height: 21px;
   border-inline-start: 3px solid #c8c8c8;
   border-block-end: 3px solid #c8c8c8;
-  border-end-start-radius: 7px;
-  background: linear-gradient(135deg, #fffefa 0 49%, #edf0f4 50% 100%);
+  border-end-start-radius: 5px;
+  background:
+    linear-gradient(135deg, transparent 0 48%, #c8c8c8 49% 53%, transparent 54%),
+    linear-gradient(135deg, #f9faf6 0 50%, #e7eaee 51% 100%);
+  box-shadow: -2px 2px 0 rgba(23, 25, 21, 0.06);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 
 .format-card::after {
