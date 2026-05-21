@@ -207,7 +207,10 @@
   }
 
   function openResetModal() {
-    if (!state.images.length) return;
+    if (!state.images.length || (els.appShell && els.appShell.classList.contains("is-empty"))) {
+      resetToInitialState();
+      return;
+    }
     els.resetModal.hidden = false;
     els.cancelResetButton.focus();
   }
