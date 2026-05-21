@@ -447,7 +447,7 @@ h1 {
 
 .drop-zone,
 .control-group,
-.bulk-list,
+.image-navigator,
 .stats,
 .palette,
 .preview-pane {
@@ -505,74 +505,67 @@ h1 {
 }
 
 .control-group,
-.bulk-list,
+.image-navigator,
 .palette {
   padding: 14px;
 }
 
-.bulk-list {
-  display: grid;
-  gap: 12px;
+.image-navigator {
+  min-height: 138px;
 }
 
-.bulk-items {
-  display: grid;
-  gap: 8px;
-  max-height: 220px;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.bulk-item {
-  min-width: 0;
-  width: 100%;
+.image-nav-frame {
+  min-height: 106px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 3px 10px;
   align-items: center;
-  padding: 9px 10px;
-  border: 2px solid var(--line);
+  gap: 12px;
+  padding: 16px;
+  border: 1px dashed rgba(23, 25, 21, 0.42);
   border-radius: 5px;
-  background: var(--panel-2);
-  color: var(--ink);
-  text-align: left;
-  box-shadow: 2px 2px 0 var(--line);
 }
 
-.bulk-item.is-active {
-  background: var(--teal);
-  color: white;
-}
-
-.bulk-item-name,
-.bulk-item-details {
+.image-nav-copy {
   min-width: 0;
+}
+
+.image-nav-copy h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.45rem;
+  line-height: 1;
+  text-transform: none;
+}
+
+.image-nav-copy p {
+  margin-top: 8px;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bulk-item-name {
-  font-weight: 700;
+.image-nav-buttons {
+  display: flex;
+  gap: 8px;
 }
 
-.bulk-item-details {
-  grid-column: 1;
-  color: currentColor;
-  opacity: 0.76;
-  font-size: 0.8rem;
+.icon-button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: 2px 2px 0 var(--line);
+  font-size: 1.8rem;
+  line-height: 1;
 }
 
-.bulk-item-status {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  min-width: 52px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 3px 7px;
-  text-align: center;
-  font-size: 0.72rem;
-  opacity: 0.82;
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .control-group.is-disabled {
@@ -817,7 +810,7 @@ canvas,
   }
 
   .drop-zone,
-  .bulk-list,
+  .image-navigator,
   .stats,
   .palette {
     grid-column: span 2;
@@ -850,7 +843,7 @@ canvas,
   }
 
   .drop-zone,
-  .bulk-list,
+  .image-navigator,
   .stats,
   .palette {
     grid-column: auto;

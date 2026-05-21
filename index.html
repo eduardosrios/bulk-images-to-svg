@@ -26,6 +26,7 @@
         <div class="top-actions">
           <button class="button secondary" id="sampleButton" type="button">Sample</button>
           <button class="button secondary" id="copyButton" type="button" disabled>Copy SVG</button>
+          <button class="button secondary" id="downloadAllButton" type="button" hidden disabled>Download All SVGs</button>
           <button class="button primary" id="downloadButton" type="button" disabled>Download SVG</button>
         </div>
         <span class="visually-hidden" id="statusText" aria-live="polite">Load a PNG, JPG, GIF, WebP, or AVIF to begin.</span>
@@ -76,12 +77,17 @@
             <span class="drop-name" id="fileName">Drop or browse</span>
           </label>
 
-          <section class="bulk-list" aria-label="Uploaded images">
-            <div class="group-header">
-              <h2>Images</h2>
-              <output id="imageCount">0</output>
+          <section class="image-navigator" aria-label="Image input">
+            <div class="image-nav-frame">
+              <div class="image-nav-copy">
+                <h2 id="imagePosition">Image 0 of 0</h2>
+                <p id="activeImageName">Drop or browse</p>
+              </div>
+              <div class="image-nav-buttons" aria-label="Image navigation">
+                <button class="icon-button" id="previousImageButton" type="button" aria-label="Previous image">‹</button>
+                <button class="icon-button" id="nextImageButton" type="button" aria-label="Next image">›</button>
+              </div>
             </div>
-            <div class="bulk-items" id="bulkItems"></div>
           </section>
 
           <section class="control-group" aria-labelledby="modeLabel">

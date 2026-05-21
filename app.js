@@ -7,10 +7,13 @@
     fileInput: document.getElementById("fileInput"),
     dropZone: document.getElementById("dropZone"),
     fileName: document.getElementById("fileName"),
-    bulkItems: document.getElementById("bulkItems"),
-    imageCount: document.getElementById("imageCount"),
+    imagePosition: document.getElementById("imagePosition"),
+    activeImageName: document.getElementById("activeImageName"),
+    previousImageButton: document.getElementById("previousImageButton"),
+    nextImageButton: document.getElementById("nextImageButton"),
     sampleButton: document.getElementById("sampleButton"),
     downloadButton: document.getElementById("downloadButton"),
+    downloadAllButton: document.getElementById("downloadAllButton"),
     copyButton: document.getElementById("copyButton"),
     originalCanvas: document.getElementById("originalCanvas"),
     svgPreview: document.getElementById("svgPreview"),
@@ -63,6 +66,7 @@
     activeImageId: "",
     nextImageId: 1,
     processing: false,
+    downloadingAll: false,
     needsProcess: false,
     pendingTimer: 0
   };
@@ -130,7 +134,14 @@
 
     els.sampleButton.addEventListener("click", loadSample);
     els.downloadButton.addEventListener("click", downloadSvg);
+    els.downloadAllButton.addEventListener("click", downloadAllSvgs);
     els.copyButton.addEventListener("click", copySvg);
+    els.previousImageButton.addEventListener("click", function () {
+      moveActiveImage(-1);
+    });
+    els.nextImageButton.addEventListener("click", function () {
+      moveActiveImage(1);
+    });
   }
 
   function pastedImageFile(event) {
@@ -218,7 +229,7 @@
         if (!state.activeImageId) {
           activateImage(record.id);
         } else {
-          renderBulkList();
+          renderImageNavigator();
         }
       } catch (error) {
         console.error(error);
@@ -227,7 +238,7 @@
 
     if (!loaded) {
       setStatus("The selected images could not be read.");
-      renderBulkList();
+      renderImageNavigator();
       return;
     }
 
@@ -321,6 +332,8 @@
     state.needsProcess = false;
     els.downloadButton.disabled = true;
     els.copyButton.disabled = true;
+    els.downloadAllButton.hidden = true;
+    els.downloadAllButton.disabled = true;
     els.outputBadge.textContent = "Idle";
     els.originalBadge.textContent = "Waiting";
     els.sourceStat.textContent = "-";
@@ -332,7 +345,7 @@
     els.svgPreview.replaceChildren();
     els.svgPreview.classList.add(EMPTY_PREVIEW_CLASS);
     els.originalCanvas.classList.remove("has-image");
-    renderBulkList();
+    renderImageNavigator();
   }
 
   function activateImage(id) {
@@ -347,6 +360,7 @@
     state.svg = record.svg || "";
     state.palette = record.palette || [];
     els.fileName.textContent = state.sourceName;
+    els.activeImageName.textContent = state.sourceName;
     els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
     els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
     els.originalBadge.textContent = "Loaded";
@@ -354,7 +368,7 @@
     els.sizeStat.textContent = record.svgSizeText || "-";
     els.colorCount.textContent = String(record.colorCount || 0);
     renderOriginalPreview(record.image);
-    renderBulkList();
+    renderImageNavigator();
     if (els.appShell) els.appShell.classList.remove("is-empty");
     queueProcess(0);
   }
@@ -369,33 +383,31 @@
     return `${count} image${count === 1 ? "" : "s"}`;
   }
 
-  function renderBulkList() {
-    if (!els.bulkItems || !els.imageCount) return;
-    els.imageCount.textContent = String(state.images.length);
-    els.bulkItems.replaceChildren();
-    for (const record of state.images) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `bulk-item${record.id === state.activeImageId ? " is-active" : ""}`;
-      button.addEventListener("click", function () {
-        activateImage(record.id);
-      });
+  function activeImageIndex() {
+    return state.images.findIndex(function (record) {
+      return record.id === state.activeImageId;
+    });
+  }
 
-      const name = document.createElement("span");
-      name.className = "bulk-item-name";
-      name.textContent = record.name;
+  function moveActiveImage(direction) {
+    if (!state.images.length) return;
+    const currentIndex = Math.max(0, activeImageIndex());
+    const nextIndex = Math.max(0, Math.min(state.images.length - 1, currentIndex + direction));
+    if (nextIndex === currentIndex) return;
+    activateImage(state.images[nextIndex].id);
+  }
 
-      const details = document.createElement("span");
-      details.className = "bulk-item-details";
-      details.textContent = `${record.sourceWidth} x ${record.sourceHeight} / ${record.svgSizeText || "-"}`;
-
-      const status = document.createElement("span");
-      status.className = "bulk-item-status";
-      status.textContent = record.status || "Loaded";
-
-      button.append(name, details, status);
-      els.bulkItems.appendChild(button);
-    }
+  function renderImageNavigator() {
+    const count = state.images.length;
+    const index = activeImageIndex();
+    const displayIndex = index >= 0 ? index + 1 : 0;
+    const controlsLocked = state.processing || state.downloadingAll;
+    els.imagePosition.textContent = `Image ${displayIndex} of ${count}`;
+    els.activeImageName.textContent = state.sourceName || "Drop or browse";
+    els.previousImageButton.disabled = controlsLocked || count < 2 || index <= 0;
+    els.nextImageButton.disabled = controlsLocked || count < 2 || index < 0 || index >= count - 1;
+    els.downloadAllButton.hidden = count < 2;
+    els.downloadAllButton.disabled = count < 2 || controlsLocked;
   }
 
   function renderOriginalPreview(image) {
@@ -450,7 +462,7 @@
     const processingRecord = imageRecordById(processingImageId);
     if (processingRecord) {
       processingRecord.status = "Working";
-      renderBulkList();
+      renderImageNavigator();
     }
     setStatus("Tracing image...");
     els.outputBadge.textContent = "Working";
@@ -460,20 +472,15 @@
     window.requestAnimationFrame(function () {
       try {
         const options = readOptions();
-        outputNumberPrecision = clampNumberPrecision(options.numberPrecision);
-        const raster = rasterizeForProcessing(state.image, options);
-        const result = options.mode === "runs"
-          ? buildExactResult(raster.imageData.data, raster.width, raster.height, options)
-          : buildTraceResult(raster.imageData.data, raster.width, raster.height, options);
-        const svg = buildSvg({
-          width: raster.width,
-          height: raster.height,
+        const conversion = convertImageRecord(processingRecord || {
+          image: state.image,
           sourceWidth: state.sourceWidth,
           sourceHeight: state.sourceHeight,
-          sourceName: state.sourceName,
-          paths: result.paths,
-          options
-        });
+          name: state.sourceName
+        }, options);
+        const raster = conversion.raster;
+        const result = conversion.result;
+        const svg = conversion.svg;
 
         state.svg = svg;
         state.palette = result.palette;
@@ -497,7 +504,7 @@
           finishedRecord.svgSizeText = els.sizeStat.textContent;
           finishedRecord.colorCount = uniquePalette(result.palette).length;
           finishedRecord.status = result.activePixels ? "Ready" : "Empty";
-          renderBulkList();
+          renderImageNavigator();
         }
         setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
       } catch (error) {
@@ -507,10 +514,11 @@
         const erroredRecord = imageRecordById(processingImageId);
         if (erroredRecord) {
           erroredRecord.status = "Error";
-          renderBulkList();
+          renderImageNavigator();
         }
       } finally {
         state.processing = false;
+        renderImageNavigator();
         if (state.needsProcess) {
           state.needsProcess = false;
           queueProcess(0);
@@ -519,14 +527,34 @@
     });
   }
 
-  function rasterizeForProcessing(image, options) {
-    const sourceMax = Math.max(state.sourceWidth, state.sourceHeight);
+  function convertImageRecord(record, options) {
+    outputNumberPrecision = clampNumberPrecision(options.numberPrecision);
+    const raster = rasterizeForProcessing(record.image, options, record.sourceWidth, record.sourceHeight);
+    const result = options.mode === "runs"
+      ? buildExactResult(raster.imageData.data, raster.width, raster.height, options)
+      : buildTraceResult(raster.imageData.data, raster.width, raster.height, options);
+    const svg = buildSvg({
+      width: raster.width,
+      height: raster.height,
+      sourceWidth: record.sourceWidth,
+      sourceHeight: record.sourceHeight,
+      sourceName: record.name,
+      paths: result.paths,
+      options
+    });
+    return { raster, result, svg };
+  }
+
+  function rasterizeForProcessing(image, options, sourceWidth, sourceHeight) {
+    const widthSource = sourceWidth || state.sourceWidth;
+    const heightSource = sourceHeight || state.sourceHeight;
+    const sourceMax = Math.max(widthSource, heightSource);
     const baseDimension = Math.min(sourceMax, options.maxDimension);
     const requestedDimension = Math.max(1, Math.round(baseDimension * options.precision));
     const cappedDimension = Math.min(requestedDimension, MAX_PROCESSING_DIMENSION);
     const scale = cappedDimension / sourceMax;
-    const width = Math.max(1, Math.round(state.sourceWidth * scale));
-    const height = Math.max(1, Math.round(state.sourceHeight * scale));
+    const width = Math.max(1, Math.round(widthSource * scale));
+    const height = Math.max(1, Math.round(heightSource * scale));
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -1522,11 +1550,101 @@
 
   function downloadSvg() {
     if (!state.svg) return;
-    const blob = new Blob([state.svg], { type: "image/svg+xml;charset=utf-8" });
+    downloadBlob(new Blob([state.svg], { type: "image/svg+xml;charset=utf-8" }), `${safeFileStem(state.sourceName)}.svg`);
+  }
+
+  async function downloadAllSvgs() {
+    if (state.images.length < 2 || state.downloadingAll) return;
+    window.clearTimeout(state.pendingTimer);
+    await waitUntilIdle();
+    state.downloadingAll = true;
+    renderImageNavigator();
+    els.downloadAllButton.textContent = "Preparing ZIP";
+    els.downloadAllButton.disabled = true;
+    setStatus(`Preparing ${formatImageCount(state.images.length)}...`);
+
+    try {
+      const options = readOptions();
+      const files = [];
+      const usedNames = new Set();
+
+      for (let i = 0; i < state.images.length; i += 1) {
+        const record = state.images[i];
+        record.status = "Working";
+        renderImageNavigator();
+        await nextFrame();
+
+        const conversion = convertImageRecord(record, options);
+        const bytes = new Blob([conversion.svg]).size;
+        const colorCount = uniquePalette(conversion.result.palette).length;
+        record.svg = conversion.svg;
+        record.palette = conversion.result.palette;
+        record.traceText = conversion.raster.wasCapped
+          ? `${conversion.raster.width} x ${conversion.raster.height} capped`
+          : `${conversion.raster.width} x ${conversion.raster.height}`;
+        record.svgSizeText = formatBytes(bytes);
+        record.colorCount = colorCount;
+        record.status = conversion.result.activePixels ? "Ready" : "Empty";
+        files.push({
+          name: uniqueSvgFileName(record.name, usedNames),
+          content: conversion.svg
+        });
+      }
+
+      const activeRecord = imageRecordById(state.activeImageId);
+      if (activeRecord) {
+        activateImage(activeRecord.id);
+      }
+
+      const zipBytes = createZip(files);
+      downloadBlob(new Blob([zipBytes], { type: "application/zip" }), "bulk-image-to-svg.zip");
+      setStatus(`${files.length} SVG files downloaded as ZIP.`);
+    } catch (error) {
+      console.error(error);
+      setStatus(error && error.message ? error.message : "ZIP download failed.");
+    } finally {
+      state.downloadingAll = false;
+      els.downloadAllButton.textContent = "Download All SVGs";
+      renderImageNavigator();
+    }
+  }
+
+  function waitUntilIdle() {
+    return new Promise(function (resolve) {
+      function check() {
+        if (!state.processing) {
+          resolve();
+          return;
+        }
+        window.setTimeout(check, 40);
+      }
+      check();
+    });
+  }
+
+  function nextFrame() {
+    return new Promise(function (resolve) {
+      window.requestAnimationFrame(resolve);
+    });
+  }
+
+  function uniqueSvgFileName(sourceName, usedNames) {
+    const stem = safeFileStem(sourceName || "image") || "image";
+    let name = `${stem}.svg`;
+    let index = 2;
+    while (usedNames.has(name.toLowerCase())) {
+      name = `${stem}-${index}.svg`;
+      index += 1;
+    }
+    usedNames.add(name.toLowerCase());
+    return name;
+  }
+
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${safeFileStem(state.sourceName)}.svg`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1534,6 +1652,115 @@
       URL.revokeObjectURL(url);
     }, 500);
   }
+
+  function createZip(files) {
+    const encoder = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    const dateParts = dosDateTime(new Date());
+
+    for (const file of files) {
+      const nameBytes = encoder.encode(file.name);
+      const contentBytes = encoder.encode(file.content);
+      const crc = crc32(contentBytes);
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      writeU32(localHeader, 0, 0x04034b50);
+      writeU16(localHeader, 4, 20);
+      writeU16(localHeader, 6, 0x0800);
+      writeU16(localHeader, 8, 0);
+      writeU16(localHeader, 10, dateParts.time);
+      writeU16(localHeader, 12, dateParts.date);
+      writeU32(localHeader, 14, crc);
+      writeU32(localHeader, 18, contentBytes.length);
+      writeU32(localHeader, 22, contentBytes.length);
+      writeU16(localHeader, 26, nameBytes.length);
+      localHeader.set(nameBytes, 30);
+
+      const centralHeader = new Uint8Array(46 + nameBytes.length);
+      writeU32(centralHeader, 0, 0x02014b50);
+      writeU16(centralHeader, 4, 20);
+      writeU16(centralHeader, 6, 20);
+      writeU16(centralHeader, 8, 0x0800);
+      writeU16(centralHeader, 10, 0);
+      writeU16(centralHeader, 12, dateParts.time);
+      writeU16(centralHeader, 14, dateParts.date);
+      writeU32(centralHeader, 16, crc);
+      writeU32(centralHeader, 20, contentBytes.length);
+      writeU32(centralHeader, 24, contentBytes.length);
+      writeU16(centralHeader, 28, nameBytes.length);
+      writeU32(centralHeader, 42, offset);
+      centralHeader.set(nameBytes, 46);
+
+      localParts.push(localHeader, contentBytes);
+      centralParts.push(centralHeader);
+      offset += localHeader.length + contentBytes.length;
+    }
+
+    const centralOffset = offset;
+    const centralSize = centralParts.reduce(function (total, part) {
+      return total + part.length;
+    }, 0);
+    const end = new Uint8Array(22);
+    writeU32(end, 0, 0x06054b50);
+    writeU16(end, 8, files.length);
+    writeU16(end, 10, files.length);
+    writeU32(end, 12, centralSize);
+    writeU32(end, 16, centralOffset);
+    return concatBytes(localParts.concat(centralParts, [end]));
+  }
+
+  function dosDateTime(date) {
+    return {
+      time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+      date: ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+    };
+  }
+
+  function concatBytes(parts) {
+    const length = parts.reduce(function (total, part) {
+      return total + part.length;
+    }, 0);
+    const output = new Uint8Array(length);
+    let offset = 0;
+    for (const part of parts) {
+      output.set(part, offset);
+      offset += part.length;
+    }
+    return output;
+  }
+
+  function writeU16(buffer, offset, value) {
+    buffer[offset] = value & 255;
+    buffer[offset + 1] = (value >>> 8) & 255;
+  }
+
+  function writeU32(buffer, offset, value) {
+    buffer[offset] = value & 255;
+    buffer[offset + 1] = (value >>> 8) & 255;
+    buffer[offset + 2] = (value >>> 16) & 255;
+    buffer[offset + 3] = (value >>> 24) & 255;
+  }
+
+  function crc32(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i += 1) {
+      crc = CRC32_TABLE[(crc ^ bytes[i]) & 255] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  const CRC32_TABLE = (function () {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i += 1) {
+      let value = i;
+      for (let bit = 0; bit < 8; bit += 1) {
+        value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+      }
+      table[i] = value >>> 0;
+    }
+    return table;
+  })();
 
   async function copySvg() {
     if (!state.svg) return;
