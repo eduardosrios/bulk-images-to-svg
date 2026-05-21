@@ -611,7 +611,7 @@
         els.traceStat.textContent = raster.wasCapped
           ? `${raster.width} x ${raster.height} capped`
           : `${raster.width} x ${raster.height}`;
-        els.sizeStat.textContent = formatBytes(bytes);
+        els.sizeStat.textContent = formatSvgSize(bytes, state.sourceBytes);
         els.detailStat.textContent = result.activePixels ? conversionDetails(result) : "-";
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
         setOutputBadge(result.activePixels ? "Converted" : "Empty");
@@ -1781,7 +1781,7 @@
     });
     renderSvgPreview(state.svg);
     if (!options || options.renderPalette !== false) renderPalette(state.palette);
-    els.sizeStat.textContent = formatBytes(new Blob([state.svg]).size);
+    els.sizeStat.textContent = formatSvgSize(new Blob([state.svg]).size, state.sourceBytes);
     els.colorCount.textContent = String(uniquePalette(state.palette).length);
 
     const record = imageRecordById(state.activeImageId);
@@ -1885,7 +1885,7 @@
         record.traceText = conversion.raster.wasCapped
           ? `${conversion.raster.width} x ${conversion.raster.height} capped`
           : `${conversion.raster.width} x ${conversion.raster.height}`;
-        record.svgSizeText = formatBytes(bytes);
+        record.svgSizeText = formatSvgSize(bytes, record.sourceBytes);
         record.detailText = conversion.result.activePixels ? conversionDetails(conversion.result) : "-";
         record.colorCount = colorCount;
         record.status = conversion.result.activePixels ? "Converted" : "Empty";
@@ -2154,6 +2154,18 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function formatSvgSize(svgBytes, originalBytes) {
+    const size = formatBytes(svgBytes);
+    if (!originalBytes || !svgBytes) return size;
+    const change = ((svgBytes - originalBytes) / originalBytes) * 100;
+    const sign = change > 0 ? "+" : "";
+    return `${size} (${sign}${formatPercent(change)}%)`;
+  }
+
+  function formatPercent(value) {
+    return value.toFixed(1).replace(".", ",");
   }
 
   function precisionStatus(raster, result, options) {
