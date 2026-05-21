@@ -759,7 +759,7 @@ select {
 .preview-head {
   min-height: 54px;
   padding: 0 16px;
-  border-bottom: 2px solid var(--line);
+  border-bottom: 0;
   background: var(--panel);
 }
 
