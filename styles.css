@@ -368,7 +368,6 @@ h1 {
 .empty-drop-text {
   color: #527cff;
   font-size: clamp(1.35rem, 3vw, 2rem);
-  font-style: italic;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
