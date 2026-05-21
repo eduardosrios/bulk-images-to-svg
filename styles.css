@@ -683,15 +683,16 @@ select {
 
 .swatches {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 4px;
   margin-top: 12px;
 }
 
 .swatch {
   aspect-ratio: 1;
-  border: 2px solid var(--line);
-  border-radius: 5px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
   background: var(--swatch);
   position: relative;
 }
