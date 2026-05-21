@@ -83,11 +83,8 @@ button {
   width: 42px;
   aspect-ratio: 1;
   flex: 0 0 auto;
-  border: 2px solid var(--line);
-  background:
-    linear-gradient(135deg, transparent 0 42%, var(--line) 42% 51%, transparent 51%),
-    linear-gradient(90deg, var(--teal) 0 50%, var(--acid) 50%);
-  box-shadow: 5px 5px 0 var(--signal);
+  display: block;
+  object-fit: contain;
 }
 
 h1,
