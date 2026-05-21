@@ -180,6 +180,7 @@ h1 {
 
 .app-shell:not(.is-empty) .workspace {
   background: #000000;
+  padding-top: 0;
 }
 
 .app-shell:not(.is-empty) .control-panel {
