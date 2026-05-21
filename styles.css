@@ -183,6 +183,11 @@ h1 {
   padding-top: 0;
 }
 
+.app-shell:not(.is-empty) .preview-grid {
+  top: 0;
+  max-height: 100vh;
+}
+
 .app-shell:not(.is-empty) .control-panel {
   color: #ffffff;
 }
