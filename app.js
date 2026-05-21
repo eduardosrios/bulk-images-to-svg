@@ -234,6 +234,7 @@
     els.activeImageName.textContent = "Drop or browse";
     els.imagePosition.textContent = "Image 0 of 0";
     setStatus(`Load a ${SUPPORTED_IMAGE_LABEL} image to begin.`);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
   function updateStickyOffset() {
