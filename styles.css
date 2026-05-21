@@ -13,6 +13,7 @@
   --shadow: 0 22px 60px rgba(23, 25, 21, 0.14);
   --radius: 4px;
   --preview-sticky-top: 110px;
+  --topbar-height: 96px;
 }
 * {
   box-sizing: border-box;
@@ -183,11 +184,16 @@ h1 {
 .app-shell:not(.is-empty) .workspace {
   background: #000000;
   padding-top: 0;
+  grid-template-columns: minmax(270px, 340px) 1fr;
 }
 
 .app-shell:not(.is-empty) .preview-grid {
-  top: 0;
-  max-height: 100vh;
+  position: fixed;
+  inset-block-start: var(--topbar-height);
+  inset-inline-start: calc(clamp(14px, 2.5vw, 24px) + 340px + clamp(14px, 2vw, 24px));
+  inset-inline-end: clamp(14px, 2.5vw, 24px);
+  z-index: 4;
+  max-height: calc(100vh - var(--topbar-height));
 }
 
 .app-shell:not(.is-empty) .control-panel {
@@ -888,6 +894,12 @@ canvas,
 @media (max-width: 1040px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell:not(.is-empty) .preview-grid {
+    position: static;
+    inset: auto;
+    max-height: none;
   }
 
   .control-panel {

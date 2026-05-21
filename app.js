@@ -239,6 +239,7 @@
   function updateStickyOffset() {
     if (!els.topbar) return;
     const topbarHeight = els.topbar.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--topbar-height", `${Math.ceil(topbarHeight)}px`);
     document.documentElement.style.setProperty("--preview-sticky-top", `${Math.ceil(topbarHeight + 14)}px`);
   }
 
