@@ -306,17 +306,6 @@ h1 {
   background: color-mix(in srgb, var(--format-color) 32%, #ffffff);
 }
 
-.format-page {
-  position: absolute;
-  inset-inline-start: 50%;
-  inset-block-start: 15px;
-  width: 32px;
-  height: 32px;
-  background: url("https://cdn-icons-png.flaticon.com/512/4904/4904233.png") center / contain no-repeat;
-  opacity: 0.72;
-  transform: translateX(-50%);
-}
-
 .format-label {
   min-height: 30px;
   display: grid;
