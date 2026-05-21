@@ -1,10 +1,10 @@
-# Bulk PNG to SVG
+# Bulk PNG/JPG to SVG
 
-A standalone PNG to SVG converter built with pure browser JavaScript. It runs fully client-side: image loading, pixel reading, color quantization, path generation, preview, copy, and download all happen in the browser.
+A standalone PNG/JPG to SVG converter built with pure browser JavaScript. It runs fully client-side: image loading, pixel reading, color quantization, path generation, preview, copy, and download all happen in the browser.
 
 ## Use
 
-Open `index.html` in a browser, then drop in a PNG or choose a file.
+Open `index.html` in a browser, then drop in a PNG/JPG or choose a file.
 
 Controls:
 
@@ -19,7 +19,7 @@ Controls:
 - `Number precision`: rounds SVG path coordinates from `1` to `8` decimal places. `1` is compact and usually visually stable for icons; higher values preserve more subpixel detail and increase SVG size.
 - `Matte`: composites transparent pixels against transparent, white, or black output.
 
-For compact icon-like PNGs, start with `Trace`, `Precision 4x` or `10x`, and `Simplify 2-3`. Monochrome transparent PNGs are detected automatically and traced as a single curved compound path when possible, which keeps files small and avoids pixel stair-steps.
+For compact icon-like PNGs or JPGs, start with `Trace`, `Precision 4x` or `10x`, and `Simplify 2-3`. Monochrome transparent PNGs are detected automatically and traced as a single curved compound path when possible, which keeps files small and avoids pixel stair-steps.
 
 For the closest visual match, use `Exact`. Exact mode preserves per-pixel RGB and opacity instead of reducing the image to the selected palette, but it can produce larger SVGs when many semi-transparent edge pixels are kept. Raise `Alpha cutoff` to reduce file size.
 
@@ -29,6 +29,6 @@ The generated SVG is minified automatically with compact markup, shortened color
 
 - `index.html`: static app shell.
 - `styles.css`: responsive interface styling.
-- `app.js`: pure JavaScript PNG raster processing and SVG export.
+- `app.js`: pure JavaScript PNG/JPG raster processing and SVG export.
 
 No build step or server is required.
