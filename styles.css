@@ -310,35 +310,12 @@ h1 {
 .format-page {
   position: absolute;
   inset-inline-start: 50%;
-  inset-block-start: 18px;
-  width: 26px;
-  height: 22px;
-  border: 3px solid var(--format-color);
-  border-radius: 4px;
-  opacity: 0.38;
+  inset-block-start: 15px;
+  width: 32px;
+  height: 32px;
+  background: url("https://cdn-icons-png.flaticon.com/512/4904/4904233.png") center / contain no-repeat;
+  opacity: 0.72;
   transform: translateX(-50%);
-}
-
-.format-page::before,
-.format-page::after {
-  content: "";
-  position: absolute;
-  background: var(--format-color);
-  opacity: 0.9;
-}
-
-.format-page::before {
-  width: 12px;
-  height: 3px;
-  inset-inline-start: 5px;
-  inset-block-start: 6px;
-}
-
-.format-page::after {
-  width: 16px;
-  height: 3px;
-  inset-inline-start: 4px;
-  inset-block-start: 12px;
 }
 
 .format-label {
