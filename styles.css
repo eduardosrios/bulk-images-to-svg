@@ -441,6 +441,10 @@ h1 {
   min-width: 0;
 }
 
+.app-shell:not(.is-empty) .drop-zone {
+  display: none;
+}
+
 .drop-zone,
 .control-group,
 .stats,
