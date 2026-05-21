@@ -1590,8 +1590,91 @@
       swatch.className = "swatch";
       swatch.style.setProperty("--swatch", colors[i].hex);
       swatch.title = colors[i].hex;
+      swatch.tabIndex = 0;
+      swatch.setAttribute("role", "button");
+      swatch.setAttribute("aria-label", `Change ${colors[i].hex}`);
+      swatch.addEventListener("click", function () {
+        openPaletteColorPicker(colors[i].hex);
+      });
+      swatch.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openPaletteColorPicker(colors[i].hex);
+      });
       els.swatches.appendChild(swatch);
     }
+  }
+
+  function openPaletteColorPicker(hex) {
+    if (!state.svg) return;
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = expandHex(hex);
+    input.hidden = true;
+    input.addEventListener("change", function () {
+      applyPaletteColor(hex, compressHex(input.value));
+      input.remove();
+    }, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  function applyPaletteColor(oldHex, newHex) {
+    if (!state.svg || normalizeHex(oldHex) === normalizeHex(newHex)) return;
+    state.svg = replaceSvgColor(state.svg, oldHex, newHex);
+    state.palette = state.palette.map(function (color) {
+      return normalizeHex(color.hex) === normalizeHex(oldHex)
+        ? Object.assign({}, color, { hex: newHex })
+        : color;
+    });
+    renderSvgPreview(state.svg);
+    renderPalette(state.palette);
+    els.sizeStat.textContent = formatBytes(new Blob([state.svg]).size);
+    els.colorCount.textContent = String(uniquePalette(state.palette).length);
+
+    const record = imageRecordById(state.activeImageId);
+    if (record) {
+      record.svg = state.svg;
+      record.palette = state.palette;
+      record.svgSizeText = els.sizeStat.textContent;
+      record.colorCount = uniquePalette(state.palette).length;
+    }
+  }
+
+  function replaceSvgColor(svg, oldHex, newHex) {
+    if (normalizeHex(oldHex) === normalizeHex("#000")) {
+      return svg
+        .replace(/<path\b(?![^>]*\bfill=)/g, `<path fill="${newHex}"`)
+        .replace(new RegExp(`(stroke=")${escapeRegExp(oldHex)}(")`, "gi"), `$1${newHex}$2`);
+    }
+    return svg
+      .replace(new RegExp(`(fill=")${escapeRegExp(oldHex)}(")`, "gi"), `$1${newHex}$2`)
+      .replace(new RegExp(`(stroke=")${escapeRegExp(oldHex)}(")`, "gi"), `$1${newHex}$2`);
+  }
+
+  function normalizeHex(hex) {
+    return expandHex(hex).toLowerCase();
+  }
+
+  function expandHex(hex) {
+    const value = String(hex || "#000000").trim();
+    if (/^#[0-9a-f]{3}$/i.test(value)) {
+      return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`.toLowerCase();
+    }
+    if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+    return "#000000";
+  }
+
+  function compressHex(hex) {
+    const value = expandHex(hex);
+    if (value[1] === value[2] && value[3] === value[4] && value[5] === value[6]) {
+      return `#${value[1]}${value[3]}${value[5]}`;
+    }
+    return value;
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   function uniquePalette(palette) {

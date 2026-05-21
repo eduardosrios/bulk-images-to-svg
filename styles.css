@@ -753,6 +753,7 @@ select {
   border-radius: 4px;
   background: var(--swatch);
   position: relative;
+  cursor: pointer;
 }
 
 .swatch::after {
