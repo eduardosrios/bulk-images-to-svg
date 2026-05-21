@@ -841,11 +841,30 @@ select {
 }
 
 .preview-stage {
+  position: relative;
   min-height: calc(100vh - 185px);
   display: grid;
   place-items: center;
   padding: clamp(12px, 2vw, 22px);
   overflow: hidden;
+}
+
+.preview-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    linear-gradient(rgba(255, 0, 0, 0.48) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.48) 1px, transparent 1px);
+  background-size: 32px 32px;
+  transition: opacity 220ms ease;
+}
+
+.app-shell.is-preview-zooming .preview-stage::after {
+  opacity: 1;
 }
 
 .checker {
@@ -878,6 +897,8 @@ canvas,
 
 .app-shell:not(.is-empty) #originalCanvas.has-image,
 .app-shell:not(.is-empty) #svgPreview:not(.is-empty) svg {
+  position: relative;
+  z-index: 1;
   transform: scale(var(--preview-zoom-scale, 1));
   transform-origin: var(--preview-zoom-x, 50%) var(--preview-zoom-y, 50%);
   transition: transform 900ms ease, transform-origin 160ms ease;
