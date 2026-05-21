@@ -1595,16 +1595,26 @@
       picker.type = "color";
       picker.value = expandHex(colors[i].hex);
       picker.setAttribute("aria-label", `Change ${colors[i].hex}`);
+      let currentHex = colors[i].hex;
+      picker.addEventListener("input", function () {
+        const nextHex = compressHex(picker.value);
+        if (applyPaletteColor(currentHex, nextHex, { renderPalette: false })) {
+          currentHex = nextHex;
+          swatch.style.setProperty("--swatch", nextHex);
+          swatch.title = nextHex;
+          picker.setAttribute("aria-label", `Change ${nextHex}`);
+        }
+      });
       picker.addEventListener("change", function () {
-        applyPaletteColor(colors[i].hex, compressHex(picker.value));
+        renderPalette(state.palette);
       });
       swatch.appendChild(picker);
       els.swatches.appendChild(swatch);
     }
   }
 
-  function applyPaletteColor(oldHex, newHex) {
-    if (!state.svg || normalizeHex(oldHex) === normalizeHex(newHex)) return;
+  function applyPaletteColor(oldHex, newHex, options) {
+    if (!state.svg || normalizeHex(oldHex) === normalizeHex(newHex)) return false;
     state.svg = replaceSvgColor(state.svg, oldHex, newHex);
     state.palette = state.palette.map(function (color) {
       return normalizeHex(color.hex) === normalizeHex(oldHex)
@@ -1612,7 +1622,7 @@
         : color;
     });
     renderSvgPreview(state.svg);
-    renderPalette(state.palette);
+    if (!options || options.renderPalette !== false) renderPalette(state.palette);
     els.sizeStat.textContent = formatBytes(new Blob([state.svg]).size);
     els.colorCount.textContent = String(uniquePalette(state.palette).length);
 
@@ -1623,6 +1633,7 @@
       record.svgSizeText = els.sizeStat.textContent;
       record.colorCount = uniquePalette(state.palette).length;
     }
+    return true;
   }
 
   function replaceSvgColor(svg, oldHex, newHex) {
