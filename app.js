@@ -22,6 +22,7 @@
     traceStat: document.getElementById("traceStat"),
     originalSizeStat: document.getElementById("originalSizeStat"),
     sizeStat: document.getElementById("sizeStat"),
+    detailStat: document.getElementById("detailStat"),
     colorCount: document.getElementById("colorCount"),
     swatches: document.getElementById("swatches"),
     originalBadge: document.getElementById("originalBadge"),
@@ -313,6 +314,7 @@
       palette: [],
       traceText: "-",
       svgSizeText: "-",
+      detailText: "-",
       colorCount: 0,
       status: "Loaded"
     };
@@ -340,6 +342,7 @@
     els.traceStat.textContent = "-";
     els.originalSizeStat.textContent = "-";
     els.sizeStat.textContent = "-";
+    els.detailStat.textContent = "-";
     els.colorCount.textContent = "0";
     els.swatches.replaceChildren();
     els.svgPreview.replaceChildren();
@@ -366,6 +369,7 @@
     els.originalBadge.textContent = "Loaded";
     els.traceStat.textContent = record.traceText || "-";
     els.sizeStat.textContent = record.svgSizeText || "-";
+    els.detailStat.textContent = record.detailText || "-";
     els.colorCount.textContent = String(record.colorCount || 0);
     renderOriginalPreview(record.image);
     renderImageNavigator();
@@ -492,6 +496,7 @@
           ? `${raster.width} x ${raster.height} capped`
           : `${raster.width} x ${raster.height}`;
         els.sizeStat.textContent = formatBytes(bytes);
+        els.detailStat.textContent = result.activePixels ? conversionDetails(result) : "-";
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
         els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
         els.downloadButton.disabled = !svg;
@@ -502,6 +507,7 @@
           finishedRecord.palette = result.palette;
           finishedRecord.traceText = els.traceStat.textContent;
           finishedRecord.svgSizeText = els.sizeStat.textContent;
+          finishedRecord.detailText = els.detailStat.textContent;
           finishedRecord.colorCount = uniquePalette(result.palette).length;
           finishedRecord.status = result.activePixels ? "Ready" : "Empty";
           renderImageNavigator();
@@ -1583,6 +1589,7 @@
           ? `${conversion.raster.width} x ${conversion.raster.height} capped`
           : `${conversion.raster.width} x ${conversion.raster.height}`;
         record.svgSizeText = formatBytes(bytes);
+        record.detailText = conversion.result.activePixels ? conversionDetails(conversion.result) : "-";
         record.colorCount = colorCount;
         record.status = conversion.result.activePixels ? "Ready" : "Empty";
         files.push({
@@ -1855,7 +1862,11 @@
   function precisionStatus(raster, result, options) {
     const mode = options.mode === "runs" ? "Exact RGBA" : "Trace";
     const cap = raster.wasCapped ? " Processing was capped to protect browser memory." : "";
-    return `${mode} SVG ready: ${result.activePixels.toLocaleString()} pixels, ${result.paths.length.toLocaleString()} paths.${cap}`;
+    return `${mode} SVG ready: ${conversionDetails(result)}.${cap}`;
+  }
+
+  function conversionDetails(result) {
+    return `${result.activePixels.toLocaleString()} pixels, ${result.paths.length.toLocaleString()} paths`;
   }
 
   function escapeXml(value) {
