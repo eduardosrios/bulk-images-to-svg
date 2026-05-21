@@ -218,7 +218,8 @@ h1 {
 
 .app-shell:not(.is-empty) .drop-name,
 .app-shell:not(.is-empty) .image-nav-copy p,
-.app-shell:not(.is-empty) .stats span {
+.app-shell:not(.is-empty) .stats span,
+.app-shell:not(.is-empty) .palette-help span {
   color: rgba(255, 255, 255, 0.62);
 }
 
