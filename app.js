@@ -73,6 +73,7 @@
     nextImageId: 1,
     processing: false,
     downloadingAll: false,
+    loadedFromSample: false,
     needsProcess: false,
     pendingTimer: 0
   };
@@ -209,17 +210,12 @@
   }
 
   function openResetModal() {
-    if (!state.images.length || isSampleVisible() || (els.appShell && els.appShell.classList.contains("is-empty"))) {
+    if (!state.images.length || state.loadedFromSample || (els.appShell && els.appShell.classList.contains("is-empty"))) {
       resetToInitialState();
       return;
     }
     els.resetModal.hidden = false;
     els.cancelResetButton.focus();
-  }
-
-  function isSampleVisible() {
-    if (!els.sampleButton) return false;
-    return window.getComputedStyle(els.sampleButton).display !== "none";
   }
 
   function closeResetModal() {
@@ -257,6 +253,7 @@
     if (options && options.replace) {
       resetBatch();
     }
+    state.loadedFromSample = false;
 
     setStatus(`Reading ${formatImageCount(files.length)}...`);
     let loaded = 0;
@@ -302,10 +299,11 @@
     return SUPPORTED_IMAGE_MIME_TYPES.has(type) || SUPPORTED_IMAGE_EXTENSION.test(file.name || "");
   }
 
-  async function loadImage(src, name, sourceBytes, revokeAfterLoad) {
+  async function loadImage(src, name, sourceBytes, revokeAfterLoad, isSample) {
     try {
       const image = await decodeImage(src);
       resetBatch();
+      state.loadedFromSample = Boolean(isSample);
       const record = createImageRecord({
         name: name || "image",
         sourceBytes: sourceBytes || 0,
@@ -379,6 +377,7 @@
     state.sourceBytes = 0;
     state.svg = "";
     state.palette = [];
+    state.loadedFromSample = false;
     state.needsProcess = false;
     els.downloadButton.disabled = true;
     els.copyButton.disabled = true;
@@ -1828,7 +1827,7 @@
   }
 
   function loadSample() {
-    loadImage(SAMPLE_IMAGE_DATA_URL, SAMPLE_IMAGE_NAME, SAMPLE_IMAGE_BYTES);
+    loadImage(SAMPLE_IMAGE_DATA_URL, SAMPLE_IMAGE_NAME, SAMPLE_IMAGE_BYTES, false, true);
   }
 
   function rgbToHex(r, g, b) {
