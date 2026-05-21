@@ -67,6 +67,16 @@ button {
   align-items: center;
   gap: 14px;
   flex: 1 1 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.brand:hover {
+  cursor: pointer;
 }
 
 .brand-mark {

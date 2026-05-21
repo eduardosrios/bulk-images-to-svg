@@ -11,6 +11,7 @@
     activeImageName: document.getElementById("activeImageName"),
     previousImageButton: document.getElementById("previousImageButton"),
     nextImageButton: document.getElementById("nextImageButton"),
+    brandResetButton: document.getElementById("brandResetButton"),
     resetButton: document.getElementById("resetButton"),
     resetModal: document.getElementById("resetModal"),
     cancelResetButton: document.getElementById("cancelResetButton"),
@@ -138,6 +139,7 @@
     });
 
     els.sampleButton.addEventListener("click", loadSample);
+    els.brandResetButton.addEventListener("click", openResetModal);
     els.resetButton.addEventListener("click", openResetModal);
     els.cancelResetButton.addEventListener("click", closeResetModal);
     els.confirmResetButton.addEventListener("click", confirmReset);
