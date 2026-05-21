@@ -88,6 +88,10 @@
   function bindEvents() {
     updateStickyOffset();
     window.addEventListener("resize", updateStickyOffset);
+    els.previewStages.forEach(function (stage) {
+      stage.addEventListener("pointermove", handlePreviewZoomMove);
+      stage.addEventListener("pointerleave", resetPreviewZoom);
+    });
 
     els.fileInput.addEventListener("change", function () {
       if (els.fileInput.files && els.fileInput.files.length) {
@@ -160,6 +164,24 @@
     els.nextImageButton.addEventListener("click", function () {
       moveActiveImage(1);
     });
+  }
+
+  function handlePreviewZoomMove(event) {
+    if (!state.image) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    els.appShell.classList.add("is-preview-zooming");
+    els.appShell.classList.remove("is-preview-zoom-resetting");
+    els.appShell.style.setProperty("--preview-zoom-x", `${(x * 100).toFixed(2)}%`);
+    els.appShell.style.setProperty("--preview-zoom-y", `${(y * 100).toFixed(2)}%`);
+    els.appShell.style.setProperty("--preview-zoom-scale", "5");
+  }
+
+  function resetPreviewZoom() {
+    els.appShell.classList.remove("is-preview-zooming");
+    els.appShell.classList.add("is-preview-zoom-resetting");
+    els.appShell.style.setProperty("--preview-zoom-scale", "1");
   }
 
   function pastedImageFile(event) {
