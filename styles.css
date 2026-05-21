@@ -316,7 +316,7 @@ h1 {
   color: #ffffff;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
