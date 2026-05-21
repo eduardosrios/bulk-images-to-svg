@@ -784,7 +784,7 @@ select {
 }
 
 .preview-stage {
-  min-height: 420px;
+  min-height: calc(100vh - 185px);
   display: grid;
   place-items: center;
   padding: clamp(12px, 2vw, 22px);
