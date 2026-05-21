@@ -175,7 +175,7 @@
     els.appShell.classList.remove("is-preview-zoom-resetting");
     els.appShell.style.setProperty("--preview-zoom-x", `${(x * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-y", `${(y * 100).toFixed(2)}%`);
-    els.appShell.style.setProperty("--preview-zoom-scale", "5");
+    els.appShell.style.setProperty("--preview-zoom-scale", "3");
   }
 
   function resetPreviewZoom() {
