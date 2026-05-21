@@ -987,7 +987,17 @@ canvas,
   .empty-drop-text {
     font-size: 1.12rem;
   }
+}
 
+@media (max-width: 630px) {
+  .preview-grid {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .preview-pane {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
