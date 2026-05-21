@@ -208,6 +208,10 @@
     els.statusText.textContent = message;
   }
 
+  function setOutputBadge(status) {
+    els.outputBadge.textContent = `SVG : ${status}`;
+  }
+
   function openResetModal() {
     if (!state.images.length || state.loadedFromSample || (els.appShell && els.appShell.classList.contains("is-empty"))) {
       resetToInitialState();
@@ -384,7 +388,7 @@
     els.copyButton.disabled = true;
     els.downloadAllButton.hidden = true;
     els.downloadAllButton.disabled = true;
-    els.outputBadge.textContent = "Idle";
+    setOutputBadge("Idle");
     els.originalBadge.textContent = "Waiting";
     els.sourceStat.textContent = "-";
     els.traceStat.textContent = "-";
@@ -517,7 +521,7 @@
       renderImageNavigator();
     }
     setStatus("Tracing image...");
-    els.outputBadge.textContent = "Working";
+    setOutputBadge("Working");
     els.downloadButton.disabled = true;
     els.copyButton.disabled = true;
 
@@ -546,7 +550,7 @@
         els.sizeStat.textContent = formatBytes(bytes);
         els.detailStat.textContent = result.activePixels ? conversionDetails(result) : "-";
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
-        els.outputBadge.textContent = result.activePixels ? "Ready" : "Empty";
+        setOutputBadge(result.activePixels ? "Ready" : "Empty");
         els.downloadButton.disabled = !svg;
         els.copyButton.disabled = !svg;
         const finishedRecord = imageRecordById(processingImageId);
@@ -564,7 +568,7 @@
       } catch (error) {
         console.error(error);
         setStatus(error && error.message ? error.message : "Conversion failed.");
-        els.outputBadge.textContent = "Error";
+        setOutputBadge("Error");
         const erroredRecord = imageRecordById(processingImageId);
         if (erroredRecord) {
           erroredRecord.status = "Error";
