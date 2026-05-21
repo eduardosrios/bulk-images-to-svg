@@ -212,6 +212,15 @@
     els.outputBadge.textContent = `SVG : ${status}`;
   }
 
+  function imageTypeLabel(fileName) {
+    const match = String(fileName || "").match(/\.([a-z0-9]+)$/i);
+    return match ? match[1].toUpperCase() : "IMAGE";
+  }
+
+  function setOriginalBadge(status, fileName) {
+    els.originalBadge.textContent = `${imageTypeLabel(fileName)} : ${status}`;
+  }
+
   function openResetModal() {
     if (!state.images.length || state.loadedFromSample || (els.appShell && els.appShell.classList.contains("is-empty"))) {
       resetToInitialState();
@@ -389,7 +398,7 @@
     els.downloadAllButton.hidden = true;
     els.downloadAllButton.disabled = true;
     setOutputBadge("Idle");
-    els.originalBadge.textContent = "Waiting";
+    setOriginalBadge("Waiting", state.sourceName);
     els.sourceStat.textContent = "-";
     els.traceStat.textContent = "-";
     els.originalSizeStat.textContent = "-";
@@ -418,7 +427,7 @@
     els.activeImageName.textContent = state.sourceName;
     els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
     els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
-    els.originalBadge.textContent = "Loaded";
+    setOriginalBadge("Loaded", state.sourceName);
     els.traceStat.textContent = record.traceText || "-";
     els.sizeStat.textContent = record.svgSizeText || "-";
     els.detailStat.textContent = record.detailText || "-";
