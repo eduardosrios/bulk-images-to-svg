@@ -204,12 +204,14 @@ h1 {
 }
 
 .empty-upload-hero,
-.empty-drop-target {
+.empty-drop-target,
+.empty-paste-hint {
   display: none;
 }
 
 .app-shell.is-empty .empty-upload-hero,
-.app-shell.is-empty .empty-drop-target {
+.app-shell.is-empty .empty-drop-target,
+.app-shell.is-empty .empty-paste-hint {
   position: relative;
   display: flex;
 }
@@ -369,6 +371,31 @@ h1 {
   font-style: italic;
   font-weight: 800;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.empty-paste-hint {
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: clamp(0.95rem, 1.6vw, 1.12rem);
+}
+
+.keycap {
+  min-width: 58px;
+  min-height: 42px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 13px;
+  border: 4px solid #4b78ff;
+  border-radius: 11px;
+  color: #4b78ff;
+  background: #ffffff;
+  box-shadow: inset 0 -2px 0 rgba(49, 87, 215, 0.12);
   text-transform: uppercase;
 }
 
