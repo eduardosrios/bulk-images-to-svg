@@ -9,7 +9,7 @@
   --teal: #009b9a;
   --acid: #c7ef35;
   --signal: #ff5c35;
-  --blue: #3157d7;
+  --blue: #000000;
   --shadow: 0 22px 60px rgba(23, 25, 21, 0.14);
   --radius: 4px;
   --preview-sticky-top: 110px;
@@ -262,13 +262,13 @@ h1 {
   border: 0;
   border-radius: 4px;
   background: #f2f2f2;
-  box-shadow: 0 28px 70px rgba(49, 87, 215, 0.08);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.08);
   transition: background 140ms ease, transform 140ms ease;
 }
 
 .app-shell.is-empty .drop-zone:hover .empty-drop-target,
 .app-shell.is-empty .drop-zone.is-over .empty-drop-target {
-  background: color-mix(in srgb, #edf3ff 78%, var(--panel));
+  background: color-mix(in srgb, #f2f2f2 78%, var(--panel));
   transform: translateY(-2px);
 }
 
@@ -283,7 +283,7 @@ h1 {
 }
 
 .format-card {
-  --format-color: #527cff;
+  --format-color: #000000;
   position: relative;
   width: 74px;
   height: 92px;
@@ -331,7 +331,7 @@ h1 {
 }
 
 .empty-drop-text {
-  color: #527cff;
+  color: #000000;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -355,11 +355,11 @@ h1 {
   display: inline-grid;
   place-items: center;
   padding: 0 13px;
-  border: 4px solid #4b78ff;
+  border: 4px solid #000000;
   border-radius: 4px;
-  color: #4b78ff;
+  color: #000000;
   background: #ffffff;
-  box-shadow: inset 0 -2px 0 rgba(49, 87, 215, 0.12);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
   text-transform: uppercase;
 }
 
