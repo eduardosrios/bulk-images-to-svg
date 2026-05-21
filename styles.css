@@ -85,6 +85,7 @@ button {
   display: block;
   object-fit: contain;
   filter: brightness(0) invert(1);
+  margin-left: -6px;
 }
 
 h1,
