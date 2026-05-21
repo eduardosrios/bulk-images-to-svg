@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Bulk Image to SVG.
+Thanks for helping improve Bulk Images to SVG.
 
 ## What To Contribute
 

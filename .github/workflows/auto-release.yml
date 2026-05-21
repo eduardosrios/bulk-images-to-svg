@@ -34,7 +34,7 @@ jobs:
           date="$(date -u +"%Y-%m-%d")"
 
           cat > release-notes.md <<EOF
-          Public release for Bulk Image to SVG.
+          Public release for Bulk Images to SVG.
 
           Commit: ${short_sha}
           Date: ${date}

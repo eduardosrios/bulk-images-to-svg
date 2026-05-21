@@ -1,10 +1,10 @@
-# Bulk Image to SVG
+# Bulk Images to SVG
 
-Bulk Image to SVG is a standalone browser converter for turning PNG, JPG, JPEG, GIF, WebP, and AVIF files into optimized SVG vectors. It is built with pure JavaScript and runs fully client-side: image loading, pixel reading, color quantization, path generation, preview, copy, and download all happen in the browser.
+Bulk Images to SVG is a standalone browser converter for turning PNG, JPG, JPEG, GIF, WebP, and AVIF files into optimized SVG vectors. It is built with pure JavaScript and runs fully client-side: image loading, pixel reading, color quantization, path generation, preview, copy, and download all happen in the browser.
 
 GitHub description:
 
-`Browser-based Bulk Image to SVG converter for PNG, JPG, JPEG, GIF, WebP, and AVIF files with client-side conversion and SVG optimization.`
+`Browser-based Bulk Images to SVG converter for PNG, JPG, JPEG, GIF, WebP, and AVIF files with client-side conversion and SVG optimization.`
 
 ## Use
 

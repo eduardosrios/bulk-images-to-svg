@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We want Bulk Image to SVG to be a welcoming project for contributors, users,
+We want Bulk Images to SVG to be a welcoming project for contributors, users,
 and maintainers. Everyone participating in this project is expected to treat
 others with respect and patience.
 
