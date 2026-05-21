@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bulk PNG/JPG to SVG</title>
+    <title>Bulk Image to SVG</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -12,7 +12,7 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
           <div>
-            <h1>Bulk PNG/JPG to SVG</h1>
+            <h1>Bulk Image to SVG</h1>
             <p>Conversion + Compression</p>
           </div>
         </div>
@@ -21,14 +21,14 @@
           <button class="button secondary" id="copyButton" type="button" disabled>Copy SVG</button>
           <button class="button primary" id="downloadButton" type="button" disabled>Download SVG</button>
         </div>
-        <span class="visually-hidden" id="statusText" aria-live="polite">Load a PNG or JPG to begin.</span>
+        <span class="visually-hidden" id="statusText" aria-live="polite">Load a PNG, JPG, GIF, WebP, or AVIF to begin.</span>
       </header>
 
       <main class="workspace">
         <aside class="control-panel" aria-label="Converter controls">
           <label class="drop-zone" id="dropZone">
-            <input id="fileInput" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg">
-            <span class="drop-title">PNG/JPG input</span>
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,.png,.jpg,.jpeg,.gif,.webp,.avif">
+            <span class="drop-title">Image input</span>
             <span class="drop-name" id="fileName">Drop or browse</span>
           </label>
 
