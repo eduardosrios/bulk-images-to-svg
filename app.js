@@ -181,7 +181,7 @@
     els.appShell.style.setProperty("--preview-zoom-x", `${(position.x * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-y", `${(position.y * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-scale", "3");
-    zoomSvgPreview(position.x, position.y, 3, wasZooming ? 120 : 900);
+    zoomSvgPreview(position.x, position.y, 3, wasZooming ? 0 : 900);
   }
 
   function resetPreviewZoom() {
@@ -197,8 +197,7 @@
   }
 
   function previewPointerPosition(event) {
-    const media = event.currentTarget.querySelector("canvas.has-image, svg");
-    const rect = (media || event.currentTarget).getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
     return {
       x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
       y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
@@ -1636,10 +1635,15 @@
   function animateSvgPreviewViewBox(svgElement, target, duration) {
     const start = state.svgPreviewCurrentViewBox || readSvgViewport(svgElement);
     if (!start) return;
+    window.cancelAnimationFrame(state.svgPreviewAnimation);
+    if (duration <= 0) {
+      setSvgPreviewViewBox(svgElement, target);
+      state.svgPreviewAnimation = 0;
+      return;
+    }
     const from = cloneViewBox(start);
     const to = cloneViewBox(target);
     const startedAt = performance.now();
-    window.cancelAnimationFrame(state.svgPreviewAnimation);
 
     function tick(now) {
       const progress = Math.min(1, (now - startedAt) / duration);

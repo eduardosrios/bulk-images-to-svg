@@ -821,9 +821,7 @@ select {
   position: sticky;
   top: var(--preview-sticky-top);
   align-self: start;
-  max-height: calc(100vh - var(--preview-sticky-top) - 14px);
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .preview-pane {
@@ -841,11 +839,14 @@ select {
 }
 
 .preview-stage {
-  min-height: calc(100vh - 185px);
+  height: calc(100vh - 185px);
+  min-height: 320px;
   display: grid;
   place-items: center;
   padding: clamp(12px, 2vw, 22px);
   overflow: hidden;
+  position: relative;
+  contain: layout paint;
 }
 
 .checker {
@@ -879,12 +880,12 @@ canvas,
 .app-shell:not(.is-empty) #originalCanvas.has-image {
   transform: scale(var(--preview-zoom-scale, 1));
   transform-origin: var(--preview-zoom-x, 50%) var(--preview-zoom-y, 50%);
-  transition: transform 900ms ease, transform-origin 160ms ease;
+  transition: transform 900ms ease;
   will-change: transform, transform-origin;
 }
 
 .app-shell.is-preview-zoom-resetting #originalCanvas.has-image {
-  transition-duration: 420ms, 160ms;
+  transition-duration: 420ms;
 }
 
 #originalCanvas {
@@ -916,12 +917,23 @@ canvas,
 
 .app-shell.is-preview-zooming #svgPreview:not(.is-empty) svg,
 .app-shell.is-preview-zoom-resetting #svgPreview:not(.is-empty) svg {
-  justify-self: stretch;
-  align-self: stretch;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+}
+
+.app-shell.is-preview-zooming #originalCanvas.has-image,
+.app-shell.is-preview-zoom-resetting #originalCanvas.has-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
 }
 
 .github-footer {
