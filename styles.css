@@ -181,7 +181,7 @@ h1 {
 }
 
 .app-shell.is-empty .workspace {
-  grid-template-columns: minmax(280px, 960px);
+  grid-template-columns: minmax(280px, 1080px);
   justify-content: center;
   align-content: center;
   min-height: calc(100vh - var(--preview-sticky-top));
@@ -189,7 +189,7 @@ h1 {
 }
 
 .app-shell.is-empty .control-panel {
-  width: min(100%, 960px);
+  width: min(100%, 1080px);
 }
 
 .app-shell.is-empty .control-panel > :not(.drop-zone),
@@ -261,69 +261,67 @@ h1 {
   padding: clamp(24px, 5vw, 48px);
   border: 0;
   border-radius: 4px;
-  background: #f2f2f2;
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.08);
+  background: #000000;
+  box-shadow: none;
   transition: background 140ms ease, transform 140ms ease;
 }
 
 .app-shell.is-empty .drop-zone:hover .empty-drop-target,
 .app-shell.is-empty .drop-zone.is-over .empty-drop-target {
-  background: color-mix(in srgb, #f2f2f2 78%, var(--panel));
+  background: #050505;
   transform: translateY(-2px);
 }
 
 .format-card-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-wrap: nowrap;
+  gap: 0;
   flex: 0 0 auto;
-  filter: drop-shadow(0 18px 18px rgba(23, 25, 21, 0.12));
+  min-height: 84px;
+  padding: 0 26px;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 22px 42px rgba(255, 255, 255, 0.12);
+  filter: none;
 }
 
 .format-card {
   --format-color: #000000;
-  position: relative;
-  width: 74px;
-  height: 92px;
+  width: auto;
+  height: auto;
   display: grid;
-  align-items: end;
-  justify-items: stretch;
-  padding-top: 42px;
-  border: 3px solid var(--format-color);
-  border-radius: 4px;
-  background: linear-gradient(180deg, #ffffff 0 70%, #f5f5f3 100%);
-  overflow: hidden;
+  place-items: center;
+  padding: 0 clamp(14px, 2.1vw, 24px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .format-card::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: 0;
-  height: 7px;
-  background: color-mix(in srgb, var(--format-color) 32%, #ffffff);
+  display: none;
 }
 
 .format-label {
-  min-height: 74px;
+  min-height: 0;
   display: grid;
   place-items: center;
-  padding: 0 5px;
-  background: var(--format-color);
-  color: #ffffff;
-  font-size: 18px;
+  padding: 0;
+  background: transparent;
+  color: #000000;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.05em;
 }
 
 .empty-drop-text {
-  color: #000000;
+  color: #ffffff;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -823,16 +821,13 @@ canvas,
   .empty-drop-target {
     flex-direction: column;
     gap: 18px;
-    min-height: 300px;
+    min-height: 260px;
   }
 
   .format-card-row {
-    gap: 8px;
-  }
-
-  .format-card {
-    width: 62px;
-    height: 82px;
+    width: min(100%, 460px);
+    justify-content: space-between;
+    padding: 0 14px;
   }
 
   .empty-drop-text {
