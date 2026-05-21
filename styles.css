@@ -315,6 +315,8 @@ h1 {
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  max-width: 130px;
+  text-align: left;
 }
 
 .empty-paste-hint {
