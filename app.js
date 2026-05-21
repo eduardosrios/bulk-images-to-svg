@@ -22,6 +22,7 @@
     copyButton: document.getElementById("copyButton"),
     originalCanvas: document.getElementById("originalCanvas"),
     svgPreview: document.getElementById("svgPreview"),
+    previewStages: document.querySelectorAll(".checker"),
     statusText: document.getElementById("statusText"),
     sourceStat: document.getElementById("sourceStat"),
     traceStat: document.getElementById("traceStat"),
@@ -174,6 +175,7 @@
   function syncControlLabels() {
     const exactMode = isExactMode();
     syncControlAvailability(exactMode);
+    syncPreviewBackground();
     els.paletteValue.textContent = exactMode ? "N/A" : els.paletteSize.value;
     els.alphaValue.textContent = els.alphaThreshold.value;
     els.resolutionValue.textContent = els.maxDimension.value;
@@ -188,6 +190,13 @@
     setControlDisabled(els.simplify, exactMode);
     setControlDisabled(els.seamFix, exactMode);
     setControlDisabled(els.numberPrecision, exactMode);
+  }
+
+  function syncPreviewBackground() {
+    const transparent = els.matte.value === "transparent";
+    els.previewStages.forEach(function (stage) {
+      stage.classList.toggle("is-transparent-background", transparent);
+    });
   }
 
   function setControlDisabled(control, disabled) {
