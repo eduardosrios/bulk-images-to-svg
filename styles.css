@@ -162,6 +162,48 @@ h1 {
   min-height: 0;
 }
 
+.app-shell.is-empty .top-actions #copyButton,
+.app-shell.is-empty .top-actions #downloadButton {
+  display: none;
+}
+
+.app-shell.is-empty .workspace {
+  grid-template-columns: minmax(280px, 620px);
+  justify-content: center;
+  align-content: center;
+  min-height: calc(100vh - var(--preview-sticky-top));
+  padding-block: clamp(30px, 8vh, 86px);
+}
+
+.app-shell.is-empty .control-panel {
+  width: min(100%, 620px);
+}
+
+.app-shell.is-empty .control-panel > :not(.drop-zone),
+.app-shell.is-empty .preview-grid {
+  display: none;
+}
+
+.app-shell.is-empty .drop-zone {
+  min-height: min(46vh, 360px);
+  padding: clamp(24px, 5vw, 44px);
+  place-items: center;
+  text-align: center;
+}
+
+.app-shell.is-empty .drop-zone::before {
+  inset: 14px;
+}
+
+.app-shell.is-empty .drop-title {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.app-shell.is-empty .drop-name {
+  font-size: 1rem;
+  white-space: normal;
+}
+
 .control-panel {
   align-self: start;
   display: grid;

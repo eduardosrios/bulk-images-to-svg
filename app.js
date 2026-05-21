@@ -2,6 +2,7 @@
   "use strict";
 
   const els = {
+    appShell: document.querySelector(".app-shell"),
     topbar: document.querySelector(".topbar"),
     fileInput: document.getElementById("fileInput"),
     dropZone: document.getElementById("dropZone"),
@@ -184,6 +185,7 @@
       els.sourceStat.textContent = `${state.sourceWidth} x ${state.sourceHeight}`;
       els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
       els.originalBadge.textContent = "Loaded";
+      if (els.appShell) els.appShell.classList.remove("is-empty");
       renderOriginalPreview(image);
       if (revokeAfterLoad) URL.revokeObjectURL(src);
       queueProcess(0);
