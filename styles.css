@@ -84,7 +84,6 @@ button {
   flex: 0 0 auto;
   display: block;
   object-fit: contain;
-  filter: brightness(0) invert(1);
   margin-left: -6px;
 }
 
