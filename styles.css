@@ -811,7 +811,7 @@ select {
 
 canvas,
 #svgPreview svg {
-  max-width: min(100%, 780px);
+  max-width: min(90%, 780px);
   max-height: 72vh;
   width: auto;
   height: auto;
