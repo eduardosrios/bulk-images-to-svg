@@ -204,7 +204,8 @@ h1 {
 .app-shell:not(.is-empty) .control-group,
 .app-shell:not(.is-empty) .image-navigator,
 .app-shell:not(.is-empty) .stats,
-.app-shell:not(.is-empty) .palette {
+.app-shell:not(.is-empty) .palette,
+.app-shell:not(.is-empty) .preview-pane {
   border-color: #ffffff;
   background: #000000;
   color: #ffffff;
