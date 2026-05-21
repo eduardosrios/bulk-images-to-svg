@@ -1590,33 +1590,17 @@
       swatch.className = "swatch";
       swatch.style.setProperty("--swatch", colors[i].hex);
       swatch.title = colors[i].hex;
-      swatch.tabIndex = 0;
-      swatch.setAttribute("role", "button");
-      swatch.setAttribute("aria-label", `Change ${colors[i].hex}`);
-      swatch.addEventListener("click", function () {
-        openPaletteColorPicker(colors[i].hex);
+      const picker = document.createElement("input");
+      picker.className = "swatch-picker";
+      picker.type = "color";
+      picker.value = expandHex(colors[i].hex);
+      picker.setAttribute("aria-label", `Change ${colors[i].hex}`);
+      picker.addEventListener("change", function () {
+        applyPaletteColor(colors[i].hex, compressHex(picker.value));
       });
-      swatch.addEventListener("keydown", function (event) {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        openPaletteColorPicker(colors[i].hex);
-      });
+      swatch.appendChild(picker);
       els.swatches.appendChild(swatch);
     }
-  }
-
-  function openPaletteColorPicker(hex) {
-    if (!state.svg) return;
-    const input = document.createElement("input");
-    input.type = "color";
-    input.value = expandHex(hex);
-    input.hidden = true;
-    input.addEventListener("change", function () {
-      applyPaletteColor(hex, compressHex(input.value));
-      input.remove();
-    }, { once: true });
-    document.body.appendChild(input);
-    input.click();
   }
 
   function applyPaletteColor(oldHex, newHex) {
