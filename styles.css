@@ -165,6 +165,7 @@ h1 {
   min-height: 0;
 }
 
+.app-shell.is-empty .top-actions #resetButton,
 .app-shell.is-empty .top-actions #copyButton,
 .app-shell.is-empty .top-actions #downloadButton {
   display: none;
@@ -301,13 +302,14 @@ h1 {
 
 .format-page {
   position: absolute;
-  inset-inline-start: 14px;
+  inset-inline-start: 50%;
   inset-block-start: 18px;
   width: 26px;
   height: 22px;
   border: 3px solid color-mix(in srgb, var(--format-color) 62%, #ffffff);
   border-radius: 4px;
   opacity: 0.38;
+  transform: translateX(-50%);
 }
 
 .format-page::before,
@@ -383,6 +385,49 @@ h1 {
 
 .app-shell:not(.is-empty) .drop-zone {
   display: none;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(23, 25, 21, 0.38);
+}
+
+.modal {
+  width: min(100%, 440px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 8px 8px 0 var(--line);
+  padding: 22px;
+}
+
+.modal h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+  line-height: 1;
+  text-transform: none;
+}
+
+.modal p {
+  margin-top: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
 }
 
 .drop-zone,

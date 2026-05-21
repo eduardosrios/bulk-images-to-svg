@@ -11,6 +11,10 @@
     activeImageName: document.getElementById("activeImageName"),
     previousImageButton: document.getElementById("previousImageButton"),
     nextImageButton: document.getElementById("nextImageButton"),
+    resetButton: document.getElementById("resetButton"),
+    resetModal: document.getElementById("resetModal"),
+    cancelResetButton: document.getElementById("cancelResetButton"),
+    confirmResetButton: document.getElementById("confirmResetButton"),
     sampleButton: document.getElementById("sampleButton"),
     downloadButton: document.getElementById("downloadButton"),
     downloadAllButton: document.getElementById("downloadAllButton"),
@@ -134,6 +138,15 @@
     });
 
     els.sampleButton.addEventListener("click", loadSample);
+    els.resetButton.addEventListener("click", openResetModal);
+    els.cancelResetButton.addEventListener("click", closeResetModal);
+    els.confirmResetButton.addEventListener("click", confirmReset);
+    els.resetModal.addEventListener("click", function (event) {
+      if (event.target === els.resetModal) closeResetModal();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !els.resetModal.hidden) closeResetModal();
+    });
     els.downloadButton.addEventListener("click", downloadSvg);
     els.downloadAllButton.addEventListener("click", downloadAllSvgs);
     els.copyButton.addEventListener("click", copySvg);
@@ -191,6 +204,31 @@
 
   function setStatus(message) {
     els.statusText.textContent = message;
+  }
+
+  function openResetModal() {
+    if (!state.images.length) return;
+    els.resetModal.hidden = false;
+    els.cancelResetButton.focus();
+  }
+
+  function closeResetModal() {
+    els.resetModal.hidden = true;
+  }
+
+  function confirmReset() {
+    closeResetModal();
+    resetToInitialState();
+  }
+
+  function resetToInitialState() {
+    resetBatch();
+    if (els.fileInput) els.fileInput.value = "";
+    if (els.appShell) els.appShell.classList.add("is-empty");
+    els.fileName.textContent = "Drop or browse";
+    els.activeImageName.textContent = "Drop or browse";
+    els.imagePosition.textContent = "Image 0 of 0";
+    setStatus(`Load a ${SUPPORTED_IMAGE_LABEL} image to begin.`);
   }
 
   function updateStickyOffset() {

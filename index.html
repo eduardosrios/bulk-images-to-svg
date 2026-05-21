@@ -24,6 +24,7 @@
           </div>
         </div>
         <div class="top-actions">
+          <button class="button secondary" id="resetButton" type="button">Reset</button>
           <button class="button secondary" id="sampleButton" type="button">Sample</button>
           <button class="button secondary" id="copyButton" type="button" disabled>Copy SVG</button>
           <button class="button secondary" id="downloadAllButton" type="button" hidden disabled>Download All SVGs</button>
@@ -76,8 +77,8 @@
                 <p id="activeImageName">Drop or browse</p>
               </div>
               <div class="image-nav-buttons" aria-label="Image navigation">
-                <button class="icon-button" id="previousImageButton" type="button" aria-label="Previous image">‹</button>
-                <button class="icon-button" id="nextImageButton" type="button" aria-label="Next image">›</button>
+                <button class="icon-button" id="previousImageButton" type="button" aria-label="Previous image">&lsaquo;</button>
+                <button class="icon-button" id="nextImageButton" type="button" aria-label="Next image">&rsaquo;</button>
               </div>
             </div>
           </section>
@@ -224,6 +225,17 @@
           </article>
         </section>
       </main>
+
+      <div class="modal-backdrop" id="resetModal" hidden>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="resetModalTitle">
+          <h2 id="resetModalTitle">Confirm reset</h2>
+          <p>The current image list will be deleted for new uploads. Do you confirm?</p>
+          <div class="modal-actions">
+            <button class="button secondary" id="cancelResetButton" type="button">No</button>
+            <button class="button primary" id="confirmResetButton" type="button">Yes</button>
+          </div>
+        </section>
+      </div>
 
     </div>
 
