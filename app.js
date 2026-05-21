@@ -207,12 +207,17 @@
   }
 
   function openResetModal() {
-    if (!state.images.length || (els.appShell && els.appShell.classList.contains("is-empty"))) {
+    if (!state.images.length || isSampleVisible() || (els.appShell && els.appShell.classList.contains("is-empty"))) {
       resetToInitialState();
       return;
     }
     els.resetModal.hidden = false;
     els.cancelResetButton.focus();
+  }
+
+  function isSampleVisible() {
+    if (!els.sampleButton) return false;
+    return window.getComputedStyle(els.sampleButton).display !== "none";
   }
 
   function closeResetModal() {
