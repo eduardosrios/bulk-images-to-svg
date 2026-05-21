@@ -259,17 +259,16 @@ h1 {
   justify-content: center;
   gap: clamp(28px, 6vw, 68px);
   padding: clamp(24px, 5vw, 48px);
-  border: 2px dashed #4b78ff;
+  border: 0;
   border-radius: 4px;
-  background: rgba(255, 254, 250, 0.82);
+  background: #f2f2f2;
   box-shadow: 0 28px 70px rgba(49, 87, 215, 0.08);
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
 .app-shell.is-empty .drop-zone:hover .empty-drop-target,
 .app-shell.is-empty .drop-zone.is-over .empty-drop-target {
   background: color-mix(in srgb, #edf3ff 78%, var(--panel));
-  border-color: var(--blue);
   transform: translateY(-2px);
 }
 
