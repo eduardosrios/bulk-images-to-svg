@@ -574,6 +574,10 @@ h1 {
   padding: 14px;
 }
 
+.palette {
+  margin-bottom: -24px;
+}
+
 .image-navigator {
   min-height: 138px;
 }
