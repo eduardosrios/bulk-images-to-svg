@@ -263,6 +263,11 @@ h1 {
   display: none;
 }
 
+.app-shell:not(.is-empty) ~ .github-footer {
+  position: relative;
+  z-index: 6;
+}
+
 [aria-labelledby="modeLabel"] {
   display: none !important;
 }
