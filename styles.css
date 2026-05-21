@@ -759,7 +759,6 @@ canvas,
 
 #originalCanvas {
   display: none;
-  border: 2px solid var(--line);
   background: transparent;
 }
 
@@ -781,7 +780,6 @@ canvas,
 
 #svgPreview svg {
   display: block;
-  border: 2px solid var(--line);
   background: transparent;
   overflow: hidden;
 }
