@@ -876,16 +876,14 @@ canvas,
   image-rendering: auto;
 }
 
-.app-shell:not(.is-empty) #originalCanvas.has-image,
-.app-shell:not(.is-empty) #svgPreview:not(.is-empty) svg {
+.app-shell:not(.is-empty) #originalCanvas.has-image {
   transform: scale(var(--preview-zoom-scale, 1));
   transform-origin: var(--preview-zoom-x, 50%) var(--preview-zoom-y, 50%);
   transition: transform 900ms ease, transform-origin 160ms ease;
   will-change: transform, transform-origin;
 }
 
-.app-shell.is-preview-zoom-resetting #originalCanvas.has-image,
-.app-shell.is-preview-zoom-resetting #svgPreview:not(.is-empty) svg {
+.app-shell.is-preview-zoom-resetting #originalCanvas.has-image {
   transition-duration: 420ms, 160ms;
 }
 

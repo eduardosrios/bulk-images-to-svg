@@ -76,7 +76,10 @@
     downloadingAll: false,
     loadedFromSample: false,
     needsProcess: false,
-    pendingTimer: 0
+    pendingTimer: 0,
+    svgPreviewBaseViewBox: null,
+    svgPreviewCurrentViewBox: null,
+    svgPreviewAnimation: 0
   };
 
   const EMPTY_PREVIEW_CLASS = "is-empty";
@@ -168,20 +171,29 @@
 
   function handlePreviewZoomMove(event) {
     if (!state.image) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    const position = previewPointerPosition(event);
     els.appShell.classList.add("is-preview-zooming");
     els.appShell.classList.remove("is-preview-zoom-resetting");
-    els.appShell.style.setProperty("--preview-zoom-x", `${(x * 100).toFixed(2)}%`);
-    els.appShell.style.setProperty("--preview-zoom-y", `${(y * 100).toFixed(2)}%`);
+    els.appShell.style.setProperty("--preview-zoom-x", `${(position.x * 100).toFixed(2)}%`);
+    els.appShell.style.setProperty("--preview-zoom-y", `${(position.y * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-scale", "3");
+    zoomSvgPreview(position.x, position.y, 3, 900);
   }
 
   function resetPreviewZoom() {
     els.appShell.classList.remove("is-preview-zooming");
     els.appShell.classList.add("is-preview-zoom-resetting");
     els.appShell.style.setProperty("--preview-zoom-scale", "1");
+    resetSvgPreviewZoom(420);
+  }
+
+  function previewPointerPosition(event) {
+    const media = event.currentTarget.querySelector("canvas.has-image, svg");
+    const rect = (media || event.currentTarget).getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+    };
   }
 
   function pastedImageFile(event) {
@@ -441,6 +453,7 @@
     els.swatches.replaceChildren();
     els.svgPreview.replaceChildren();
     els.svgPreview.classList.add(EMPTY_PREVIEW_CLASS);
+    resetSvgPreviewState(null);
     els.originalCanvas.classList.remove("has-image");
     renderImageNavigator();
   }
@@ -1563,7 +1576,89 @@
     const template = document.createElement("template");
     template.innerHTML = svg.replace(/^<\?xml[^>]*>\s*/i, "");
     els.svgPreview.appendChild(template.content.cloneNode(true));
-    fitPreviewSvg(els.svgPreview.querySelector("svg"));
+    const svgElement = els.svgPreview.querySelector("svg");
+    fitPreviewSvg(svgElement);
+    resetSvgPreviewState(svgElement);
+  }
+
+  function resetSvgPreviewState(svgElement) {
+    window.cancelAnimationFrame(state.svgPreviewAnimation);
+    state.svgPreviewAnimation = 0;
+    const viewBox = svgElement ? readSvgViewport(svgElement) : null;
+    state.svgPreviewBaseViewBox = viewBox ? cloneViewBox(viewBox) : null;
+    state.svgPreviewCurrentViewBox = viewBox ? cloneViewBox(viewBox) : null;
+  }
+
+  function zoomSvgPreview(x, y, scale, duration) {
+    const base = state.svgPreviewBaseViewBox;
+    const svgElement = els.svgPreview.querySelector("svg");
+    if (!base || !svgElement) return;
+    const width = base.width / scale;
+    const height = base.height / scale;
+    const target = {
+      x: base.x + (base.width * x) - (width * x),
+      y: base.y + (base.height * y) - (height * y),
+      width,
+      height
+    };
+    animateSvgPreviewViewBox(svgElement, target, duration);
+  }
+
+  function resetSvgPreviewZoom(duration) {
+    const base = state.svgPreviewBaseViewBox;
+    const svgElement = els.svgPreview.querySelector("svg");
+    if (!base || !svgElement) return;
+    animateSvgPreviewViewBox(svgElement, base, duration);
+  }
+
+  function animateSvgPreviewViewBox(svgElement, target, duration) {
+    const start = state.svgPreviewCurrentViewBox || readSvgViewport(svgElement);
+    if (!start) return;
+    const from = cloneViewBox(start);
+    const to = cloneViewBox(target);
+    const startedAt = performance.now();
+    window.cancelAnimationFrame(state.svgPreviewAnimation);
+
+    function tick(now) {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = easeOutCubic(progress);
+      const next = {
+        x: interpolate(from.x, to.x, eased),
+        y: interpolate(from.y, to.y, eased),
+        width: interpolate(from.width, to.width, eased),
+        height: interpolate(from.height, to.height, eased)
+      };
+      setSvgPreviewViewBox(svgElement, next);
+      if (progress < 1) {
+        state.svgPreviewAnimation = window.requestAnimationFrame(tick);
+      } else {
+        state.svgPreviewAnimation = 0;
+      }
+    }
+
+    state.svgPreviewAnimation = window.requestAnimationFrame(tick);
+  }
+
+  function setSvgPreviewViewBox(svgElement, viewBox) {
+    state.svgPreviewCurrentViewBox = cloneViewBox(viewBox);
+    svgElement.setAttribute("viewBox", `${previewNum(viewBox.x)} ${previewNum(viewBox.y)} ${previewNum(viewBox.width)} ${previewNum(viewBox.height)}`);
+  }
+
+  function cloneViewBox(viewBox) {
+    return {
+      x: viewBox.x,
+      y: viewBox.y,
+      width: viewBox.width,
+      height: viewBox.height
+    };
+  }
+
+  function interpolate(from, to, progress) {
+    return from + ((to - from) * progress);
+  }
+
+  function easeOutCubic(progress) {
+    return 1 - Math.pow(1 - progress, 3);
   }
 
   function fitPreviewSvg(svgElement) {
