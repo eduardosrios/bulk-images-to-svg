@@ -53,7 +53,7 @@ button {
   justify-content: space-between;
   gap: 18px;
   padding: 30px clamp(20px, 2.7vw, 52px);
-  border-bottom: 2px solid #d7d7d7;
+  border-bottom: 0;
   background: #000000;
   position: sticky;
   top: 0;
@@ -171,6 +171,74 @@ h1 {
 
 .app-shell:not(.is-empty) .top-actions #sampleButton {
   display: none;
+}
+
+.app-shell:not(.is-empty) {
+  background: #000000;
+  color: #ffffff;
+}
+
+.app-shell:not(.is-empty) .workspace {
+  background: #000000;
+}
+
+.app-shell:not(.is-empty) .control-panel {
+  color: #ffffff;
+}
+
+.app-shell:not(.is-empty) .drop-zone,
+.app-shell:not(.is-empty) .control-group,
+.app-shell:not(.is-empty) .image-navigator,
+.app-shell:not(.is-empty) .stats,
+.app-shell:not(.is-empty) .palette {
+  border-color: #ffffff;
+  background: #000000;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.app-shell:not(.is-empty) .drop-zone::before,
+.app-shell:not(.is-empty) .image-nav-frame {
+  border-color: rgba(255, 255, 255, 0.48);
+}
+
+.app-shell:not(.is-empty) .drop-name,
+.app-shell:not(.is-empty) .image-nav-copy p,
+.app-shell:not(.is-empty) .stats span {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.app-shell:not(.is-empty) output,
+.app-shell:not(.is-empty) .preview-head span {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+  background: #000000;
+}
+
+.app-shell:not(.is-empty) input[type="range"] {
+  accent-color: #ffffff;
+}
+
+.app-shell:not(.is-empty) select,
+.app-shell:not(.is-empty) .segmented span,
+.app-shell:not(.is-empty) .icon-button {
+  border-color: #ffffff;
+  background: #000000;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.app-shell:not(.is-empty) .segmented input:checked + span {
+  background: #ffffff;
+  color: #000000;
+}
+
+.app-shell:not(.is-empty) .control-group.is-disabled {
+  opacity: 0.42;
+}
+
+.app-shell:not(.is-empty) .stats div {
+  border-bottom-color: rgba(255, 255, 255, 0.24);
 }
 
 .app-shell.is-empty .workspace {
