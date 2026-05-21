@@ -351,7 +351,7 @@ h1 {
   min-height: clamp(190px, 26vw, 260px);
   align-items: center;
   justify-content: center;
-  gap: clamp(28px, 6vw, 68px);
+  gap: 58px;
   padding: clamp(24px, 5vw, 48px);
   border: 0;
   border-radius: 4px;
