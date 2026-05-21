@@ -79,7 +79,9 @@
     pendingTimer: 0,
     svgPreviewBaseViewBox: null,
     svgPreviewCurrentViewBox: null,
-    svgPreviewAnimation: 0
+    svgPreviewAnimation: 0,
+    svgPreviewPreserveAspectRatio: null,
+    previewZoomResetTimer: 0
   };
 
   const EMPTY_PREVIEW_CLASS = "is-empty";
@@ -172,19 +174,26 @@
   function handlePreviewZoomMove(event) {
     if (!state.image) return;
     const position = previewPointerPosition(event);
+    const wasZooming = els.appShell.classList.contains("is-preview-zooming");
+    window.clearTimeout(state.previewZoomResetTimer);
     els.appShell.classList.add("is-preview-zooming");
     els.appShell.classList.remove("is-preview-zoom-resetting");
     els.appShell.style.setProperty("--preview-zoom-x", `${(position.x * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-y", `${(position.y * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-scale", "3");
-    zoomSvgPreview(position.x, position.y, 3, 900);
+    zoomSvgPreview(position.x, position.y, 3, wasZooming ? 120 : 900);
   }
 
   function resetPreviewZoom() {
+    window.clearTimeout(state.previewZoomResetTimer);
     els.appShell.classList.remove("is-preview-zooming");
     els.appShell.classList.add("is-preview-zoom-resetting");
     els.appShell.style.setProperty("--preview-zoom-scale", "1");
     resetSvgPreviewZoom(420);
+    state.previewZoomResetTimer = window.setTimeout(function () {
+      els.appShell.classList.remove("is-preview-zoom-resetting");
+      restoreSvgPreviewAspectRatio();
+    }, 430);
   }
 
   function previewPointerPosition(event) {
@@ -427,6 +436,7 @@
 
   function resetBatch() {
     window.clearTimeout(state.pendingTimer);
+    window.clearTimeout(state.previewZoomResetTimer);
     state.images = [];
     state.activeImageId = "";
     state.image = null;
@@ -1587,12 +1597,14 @@
     const viewBox = svgElement ? readSvgViewport(svgElement) : null;
     state.svgPreviewBaseViewBox = viewBox ? cloneViewBox(viewBox) : null;
     state.svgPreviewCurrentViewBox = viewBox ? cloneViewBox(viewBox) : null;
+    state.svgPreviewPreserveAspectRatio = svgElement ? svgElement.getAttribute("preserveAspectRatio") : null;
   }
 
   function zoomSvgPreview(x, y, scale, duration) {
     const base = state.svgPreviewBaseViewBox;
     const svgElement = els.svgPreview.querySelector("svg");
     if (!base || !svgElement) return;
+    svgElement.setAttribute("preserveAspectRatio", "xMidYMid slice");
     const width = base.width / scale;
     const height = base.height / scale;
     const target = {
@@ -1609,6 +1621,16 @@
     const svgElement = els.svgPreview.querySelector("svg");
     if (!base || !svgElement) return;
     animateSvgPreviewViewBox(svgElement, base, duration);
+  }
+
+  function restoreSvgPreviewAspectRatio() {
+    const svgElement = els.svgPreview.querySelector("svg");
+    if (!svgElement) return;
+    if (state.svgPreviewPreserveAspectRatio) {
+      svgElement.setAttribute("preserveAspectRatio", state.svgPreviewPreserveAspectRatio);
+    } else {
+      svgElement.removeAttribute("preserveAspectRatio");
+    }
   }
 
   function animateSvgPreviewViewBox(svgElement, target, duration) {
