@@ -77,6 +77,13 @@
       if (file) loadFile(file);
     });
 
+    document.addEventListener("paste", function (event) {
+      const file = pastedImageFile(event);
+      if (!file) return;
+      event.preventDefault();
+      loadFile(file);
+    });
+
     ["dragenter", "dragover"].forEach(function (name) {
       els.dropZone.addEventListener(name, function (event) {
         event.preventDefault();
@@ -117,6 +124,17 @@
     els.sampleButton.addEventListener("click", loadSample);
     els.downloadButton.addEventListener("click", downloadSvg);
     els.copyButton.addEventListener("click", copySvg);
+  }
+
+  function pastedImageFile(event) {
+    const items = event.clipboardData && event.clipboardData.items;
+    if (!items) return null;
+    for (const item of items) {
+      if (!item.type || !item.type.startsWith("image/")) continue;
+      const file = item.getAsFile();
+      if (file) return file;
+    }
+    return null;
   }
 
   function syncControlLabels() {
