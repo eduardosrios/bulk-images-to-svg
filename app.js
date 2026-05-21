@@ -559,7 +559,7 @@
         els.sizeStat.textContent = formatBytes(bytes);
         els.detailStat.textContent = result.activePixels ? conversionDetails(result) : "-";
         els.colorCount.textContent = String(uniquePalette(result.palette).length);
-        setOutputBadge(result.activePixels ? "Ready" : "Empty");
+        setOutputBadge(result.activePixels ? "Converted" : "Empty");
         els.downloadButton.disabled = !svg;
         els.copyButton.disabled = !svg;
         const finishedRecord = imageRecordById(processingImageId);
@@ -570,7 +570,7 @@
           finishedRecord.svgSizeText = els.sizeStat.textContent;
           finishedRecord.detailText = els.detailStat.textContent;
           finishedRecord.colorCount = uniquePalette(result.palette).length;
-          finishedRecord.status = result.activePixels ? "Ready" : "Empty";
+          finishedRecord.status = result.activePixels ? "Converted" : "Empty";
           renderImageNavigator();
         }
         setStatus(result.activePixels ? precisionStatus(raster, result, options) : "No visible pixels were found.");
@@ -1652,7 +1652,7 @@
         record.svgSizeText = formatBytes(bytes);
         record.detailText = conversion.result.activePixels ? conversionDetails(conversion.result) : "-";
         record.colorCount = colorCount;
-        record.status = conversion.result.activePixels ? "Ready" : "Empty";
+        record.status = conversion.result.activePixels ? "Converted" : "Empty";
         files.push({
           name: uniqueSvgFileName(record.name, usedNames),
           content: conversion.svg
