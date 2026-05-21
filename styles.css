@@ -479,10 +479,15 @@ h1 {
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: 8px 8px 0 var(--line);
-  padding: 22px;
+  padding: 0 22px 22px;
+  overflow: hidden;
 }
 
 .modal h2 {
+  margin: 0 -22px;
+  padding: 16px 22px;
+  background: #000000;
+  color: #ffffff;
   font-size: 1.55rem;
   line-height: 1;
   text-transform: none;
