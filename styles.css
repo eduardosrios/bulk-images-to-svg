@@ -114,10 +114,10 @@ h1 {
 }
 
 .button {
-  min-height: 52px;
+  min-height: 48px;
   border: 2px solid #ffffff;
   border-radius: 4px;
-  padding: 0 20px;
+  padding: 0 30px;
   background: #000000;
   color: #ffffff;
   box-shadow: 5px 5px 0 rgba(255, 255, 255, 0.78);
