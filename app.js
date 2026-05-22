@@ -1776,8 +1776,9 @@
   function arcCorrectPath(points, previousCursor, options) {
     if (!options || !options.arcCorrection || options.arcCorrection === "off" || points.length < 10) return null;
     const settings = arcCorrectionSettings(options.arcCorrection);
+    const arcPoints = rotatePointsForArcCorrection(points);
     const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
-    const start = roundedPoint(points[0]);
+    const start = roundedPoint(arcPoints[0]);
     const commands = [`m${nums(start.x - origin.x, start.y - origin.y)}`];
     let pendingCommand = "";
     let pendingX = 0;
@@ -1786,6 +1787,7 @@
     let canUseImplicitLine = true;
     let current = start;
     let arcCount = 0;
+    let curveCount = 0;
 
     function flushPending() {
       if (!pendingCommand) return;
@@ -1847,27 +1849,36 @@
     }
 
     let index = 0;
-    while (index < points.length - 1) {
-      const arc = findArcSegment(points, index, settings);
-      if (arc) {
+    while (index < arcPoints.length - 1) {
+      const arc = findArcSegment(arcPoints, index, settings);
+      const curve = findBezierCurveSegment(arcPoints, index, settings);
+      const segment = chooseArcCorrectionSegment(arc, curve);
+      if (segment) {
         flushPending();
-        const target = roundedPoint(points[arc.endIndex]);
+        const target = roundedPoint(arcPoints[segment.endIndex]);
         const dx = target.x - current.x;
         const dy = target.y - current.y;
         if (!nearlyZero(dx) || !nearlyZero(dy)) {
-          commands.push(`a${nums(arc.radius, arc.radius)} 0 ${arc.largeArcFlag} ${arc.sweepFlag} ${nums(dx, dy)}`);
+          if (segment.type === "curve") {
+            const control1 = roundedPoint(segment.control1);
+            const control2 = roundedPoint(segment.control2);
+            commands.push(`c${nums(control1.x - current.x, control1.y - current.y, control2.x - current.x, control2.y - current.y, dx, dy)}`);
+            curveCount += 1;
+          } else {
+            commands.push(`a${nums(segment.radius, segment.radius)} 0 ${segment.largeArcFlag} ${segment.sweepFlag} ${nums(dx, dy)}`);
+            arcCount += 1;
+          }
           canUseImplicitLine = false;
-          arcCount += 1;
         }
         current = target;
-        index = arc.endIndex;
+        index = segment.endIndex;
       } else {
-        queueLineTo(points[index + 1]);
+        queueLineTo(arcPoints[index + 1]);
         index += 1;
       }
     }
 
-    if (!arcCount) return null;
+    if (!arcCount && !curveCount) return null;
     flushPending();
     commands.push("Z");
     return {
@@ -1876,15 +1887,57 @@
     };
   }
 
+  function rotatePointsForArcCorrection(points) {
+    if (points.length < 4) return points;
+    const anchor = findArcCorrectionAnchor(points);
+    if (anchor <= 0) return points;
+    return points.slice(anchor).concat(points.slice(0, anchor));
+  }
+
+  function findArcCorrectionAnchor(points) {
+    let sharpIndex = -1;
+    let sharpScore = -Infinity;
+    let straightIndex = 0;
+    let straightScore = -Infinity;
+
+    for (let i = 0; i < points.length; i += 1) {
+      const previous = points[(i - 1 + points.length) % points.length];
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      const incoming = { x: current.x - previous.x, y: current.y - previous.y };
+      const outgoing = { x: next.x - current.x, y: next.y - current.y };
+      const incomingLength = Math.hypot(incoming.x, incoming.y);
+      const outgoingLength = Math.hypot(outgoing.x, outgoing.y);
+      if (incomingLength <= 0.001 || outgoingLength <= 0.001) continue;
+      const turn = Math.abs(Math.atan2(
+        (incoming.x * outgoing.y) - (incoming.y * outgoing.x),
+        (incoming.x * outgoing.x) + (incoming.y * outgoing.y)
+      ));
+      const localLength = Math.min(incomingLength, outgoingLength);
+      const cornerScore = (turn * 12) + localLength;
+      if (turn > 0.7 && cornerScore > sharpScore) {
+        sharpScore = cornerScore;
+        sharpIndex = i;
+      }
+      const lineScore = localLength - (turn * 16);
+      if (lineScore > straightScore) {
+        straightScore = lineScore;
+        straightIndex = i;
+      }
+    }
+
+    return sharpIndex >= 0 ? sharpIndex : straightIndex;
+  }
+
   function arcCorrectionSettings(mode) {
     if (mode === "aggressive") {
       return {
-        minEdges: 6,
-        maxEdges: 96,
+        minEdges: 5,
+        maxEdges: 192,
         minRadius: 3,
-        minTurn: 0.2,
+        minTurn: 0.1,
         maxTurn: Math.PI * 1.45,
-        minSagitta: 0.75,
+        minSagitta: 0.45,
         minError: 2.2,
         errorRatio: 0.042,
         averageErrorFactor: 0.72,
@@ -1894,19 +1947,37 @@
         maxArcAngleOverflow: 0.08,
         fitSamples: 36,
         fineFitIterations: 14,
-        lengthBonus: 0.025,
-        minDirectionConsistency: 0.72,
-        minSegmentTurnConsistency: 0.42,
-        minChordRadiusRatio: 0.85
+        maxEndpointTangentError: 1.05,
+        tangentErrorWeight: 0.32,
+        lengthBonus: 0.035,
+        minDirectionConsistency: 0.66,
+        minSegmentTurnConsistency: 0.34,
+        minChordRadiusRatio: 0.18,
+        minSignificantTurns: 2,
+        maxSegmentTurnShare: 0.86,
+        bezierMinEdges: 5,
+        bezierMaxEdges: 160,
+        bezierMinTurn: 0.09,
+        bezierMaxTurn: Math.PI * 1.45,
+        bezierMinSagitta: 0.45,
+        bezierMinError: 1.35,
+        bezierErrorRatio: 0.024,
+        bezierAverageErrorFactor: 0.54,
+        bezierLengthBonus: 0.018,
+        bezierMinDirectionConsistency: 0.64,
+        bezierMinSegmentTurnConsistency: 0.32,
+        bezierMinSignificantTurns: 2,
+        bezierMaxSegmentTurnShare: 0.82,
+        bezierMaxControlRatio: 2.2
       };
     }
     return {
-      minEdges: 8,
-      maxEdges: 72,
+      minEdges: 5,
+      maxEdges: 180,
       minRadius: 4,
-      minTurn: 0.26,
+      minTurn: 0.12,
       maxTurn: Math.PI * 1.25,
-      minSagitta: 1,
+      minSagitta: 0.55,
       minError: 1.45,
       errorRatio: 0.026,
       averageErrorFactor: 0.62,
@@ -1916,11 +1987,39 @@
       maxArcAngleOverflow: 0.045,
       fitSamples: 32,
       fineFitIterations: 14,
-      lengthBonus: 0.01,
-      minDirectionConsistency: 0.82,
-      minSegmentTurnConsistency: 0.58,
-      minChordRadiusRatio: 1.12
+      maxEndpointTangentError: 0.78,
+      tangentErrorWeight: 0.45,
+      lengthBonus: 0.024,
+      minDirectionConsistency: 0.72,
+      minSegmentTurnConsistency: 0.38,
+      minChordRadiusRatio: 0.22,
+      minSignificantTurns: 3,
+      maxSegmentTurnShare: 0.72,
+      bezierMinEdges: 6,
+      bezierMaxEdges: 132,
+      bezierMinTurn: 0.12,
+      bezierMaxTurn: Math.PI * 1.25,
+      bezierMinSagitta: 0.55,
+      bezierMinError: 0.95,
+      bezierErrorRatio: 0.014,
+      bezierAverageErrorFactor: 0.46,
+      bezierLengthBonus: 0.012,
+      bezierMinDirectionConsistency: 0.7,
+      bezierMinSegmentTurnConsistency: 0.4,
+      bezierMinSignificantTurns: 3,
+      bezierMaxSegmentTurnShare: 0.68,
+      bezierMaxControlRatio: 1.8
     };
+  }
+
+  function chooseArcCorrectionSegment(arc, curve) {
+    if (!arc) return curve;
+    if (!curve) return arc;
+    const curveExtendsSegment = curve.endIndex >= arc.endIndex + 3;
+    const curveIsCleaner = curve.score < arc.score - 0.18;
+    if (curveExtendsSegment && curve.score <= arc.score + 0.35) return curve;
+    if (curveIsCleaner) return curve;
+    return arc;
   }
 
   function findArcSegment(points, startIndex, settings) {
@@ -1934,6 +2033,7 @@
       const score = candidate.objective - (edgeCount * settings.lengthBonus);
       if (!best || score < best.score) {
         best = {
+          type: "arc",
           endIndex: candidate.endIndex,
           radius: candidate.radius,
           largeArcFlag: candidate.largeArcFlag,
@@ -1984,7 +2084,10 @@
     const turn = Math.abs(totalTurn);
     if (turn < settings.minTurn || turn > settings.maxTurn) return null;
     if (totalAbsTurn <= 0 || turn / totalAbsTurn < settings.minDirectionConsistency) return null;
-    if (segmentTurnConsistency(points, startIndex, endIndex) < settings.minSegmentTurnConsistency) return null;
+    const curvature = segmentCurvatureStats(points, startIndex, endIndex);
+    if (curvature.consistency < settings.minSegmentTurnConsistency) return null;
+    if (curvature.significantTurns < settings.minSignificantTurns) return null;
+    if (curvature.maxTurnShare > settings.maxSegmentTurnShare) return null;
 
     const averageError = totalError / (endIndex - startIndex + 1);
     if (averageError > maxError * settings.averageErrorFactor) return null;
@@ -1995,6 +2098,7 @@
     if (flags.fit.maxError > finalMaxError) return null;
     if (flags.fit.averageError > finalMaxError * settings.finalAverageErrorFactor) return null;
     if (flags.fit.maxAngleOverflow > settings.maxArcAngleOverflow) return null;
+    if (flags.fit.endpointTangentError > settings.maxEndpointTangentError) return null;
 
     return {
       endIndex,
@@ -2003,6 +2107,239 @@
       sweepFlag: flags.sweepFlag,
       objective: flags.objective
     };
+  }
+
+  function findBezierCurveSegment(points, startIndex, settings) {
+    const remainingEdges = points.length - 1 - startIndex;
+    if (remainingEdges < settings.bezierMinEdges) return null;
+    const maxEdges = Math.min(settings.bezierMaxEdges, remainingEdges);
+    let best = null;
+    for (let edgeCount = maxEdges; edgeCount >= settings.bezierMinEdges; edgeCount -= 1) {
+      const candidate = evaluateBezierCurveCandidate(points, startIndex, startIndex + edgeCount, settings);
+      if (!candidate) continue;
+      const score = candidate.objective - (edgeCount * settings.bezierLengthBonus);
+      if (!best || score < best.score) {
+        best = {
+          type: "curve",
+          endIndex: candidate.endIndex,
+          control1: candidate.control1,
+          control2: candidate.control2,
+          score
+        };
+      }
+    }
+    return best;
+  }
+
+  function evaluateBezierCurveCandidate(points, startIndex, endIndex, settings) {
+    const start = points[startIndex];
+    const end = points[endIndex];
+    const chord = pointDistance(start, end);
+    if (chord < 2) return null;
+
+    const sagitta = maxSegmentLineDistance(points, startIndex, endIndex);
+    if (sagitta < settings.bezierMinSagitta) return null;
+
+    const curvature = segmentCurvatureStats(points, startIndex, endIndex);
+    const turn = Math.abs(curvature.signedTurn);
+    if (turn < settings.bezierMinTurn || turn > settings.bezierMaxTurn) return null;
+    if (curvature.consistency < settings.bezierMinDirectionConsistency) return null;
+    if (curvature.consistency < settings.bezierMinSegmentTurnConsistency) return null;
+    if (curvature.significantTurns < settings.bezierMinSignificantTurns) return null;
+    if (curvature.maxTurnShare > settings.bezierMaxSegmentTurnShare) return null;
+
+    const fit = fitCubicBezierSegment(points, startIndex, endIndex, settings);
+    if (!fit) return null;
+    const maxError = Math.max(settings.bezierMinError, chord * settings.bezierErrorRatio);
+    if (fit.maxError > maxError) return null;
+    if (fit.averageError > maxError * settings.bezierAverageErrorFactor) return null;
+
+    return {
+      endIndex,
+      control1: fit.control1,
+      control2: fit.control2,
+      objective: fit.maxError + (fit.averageError * 0.85) + (fit.controlRatio * 0.18)
+    };
+  }
+
+  function fitCubicBezierSegment(points, startIndex, endIndex, settings) {
+    const start = points[startIndex];
+    const end = points[endIndex];
+    const chord = pointDistance(start, end);
+    if (chord <= 0.001) return null;
+    const tangent1 = segmentEndpointTangent(points, startIndex, endIndex, true);
+    const tangent2 = segmentEndpointTangent(points, startIndex, endIndex, false);
+    if (!tangent1 || !tangent2) return null;
+
+    const parameters = chordLengthParameters(points, startIndex, endIndex);
+    if (!parameters) return null;
+    let c00 = 0;
+    let c01 = 0;
+    let c11 = 0;
+    let x0 = 0;
+    let x1 = 0;
+
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      const u = parameters[i - startIndex];
+      const inverse = 1 - u;
+      const b0 = inverse * inverse * inverse;
+      const b1 = 3 * u * inverse * inverse;
+      const b2 = 3 * u * u * inverse;
+      const b3 = u * u * u;
+      const a1 = { x: tangent1.x * b1, y: tangent1.y * b1 };
+      const a2 = { x: tangent2.x * b2, y: tangent2.y * b2 };
+      const base = {
+        x: ((b0 + b1) * start.x) + ((b2 + b3) * end.x),
+        y: ((b0 + b1) * start.y) + ((b2 + b3) * end.y)
+      };
+      const target = {
+        x: points[i].x - base.x,
+        y: points[i].y - base.y
+      };
+      c00 += dotPoint(a1, a1);
+      c01 += dotPoint(a1, a2);
+      c11 += dotPoint(a2, a2);
+      x0 += dotPoint(a1, target);
+      x1 += dotPoint(a2, target);
+    }
+
+    const determinant = (c00 * c11) - (c01 * c01);
+    let alpha1 = chord / 3;
+    let alpha2 = chord / 3;
+    if (Math.abs(determinant) > 0.000001) {
+      alpha1 = ((x0 * c11) - (x1 * c01)) / determinant;
+      alpha2 = ((c00 * x1) - (c01 * x0)) / determinant;
+    }
+    const maxControl = chord * settings.bezierMaxControlRatio;
+    if (!Number.isFinite(alpha1) || !Number.isFinite(alpha2) || alpha1 <= 0.001 || alpha2 <= 0.001) {
+      alpha1 = chord / 3;
+      alpha2 = chord / 3;
+    }
+    if (alpha1 > maxControl || alpha2 > maxControl) return null;
+
+    const curve = {
+      start,
+      control1: {
+        x: start.x + (tangent1.x * alpha1),
+        y: start.y + (tangent1.y * alpha1)
+      },
+      control2: {
+        x: end.x + (tangent2.x * alpha2),
+        y: end.y + (tangent2.y * alpha2)
+      },
+      end
+    };
+    const fit = cubicSegmentFitError(points, startIndex, endIndex, parameters, curve);
+    if (!fit) return null;
+    return {
+      control1: curve.control1,
+      control2: curve.control2,
+      maxError: fit.maxError,
+      averageError: fit.averageError,
+      controlRatio: Math.max(alpha1, alpha2) / chord
+    };
+  }
+
+  function segmentEndpointTangent(points, startIndex, endIndex, atStart) {
+    const anchor = atStart ? points[startIndex] : points[endIndex];
+    const step = atStart ? 1 : -1;
+    const limit = atStart ? endIndex : startIndex;
+    for (let i = atStart ? startIndex + 1 : endIndex - 1; atStart ? i <= limit : i >= limit; i += step) {
+      const point = points[i];
+      const vector = atStart
+        ? { x: point.x - anchor.x, y: point.y - anchor.y }
+        : { x: point.x - anchor.x, y: point.y - anchor.y };
+      const length = Math.hypot(vector.x, vector.y);
+      if (length > 0.001) {
+        return { x: vector.x / length, y: vector.y / length };
+      }
+    }
+    return null;
+  }
+
+  function chordLengthParameters(points, startIndex, endIndex) {
+    const parameters = [0];
+    let total = 0;
+    for (let i = startIndex + 1; i <= endIndex; i += 1) {
+      total += pointDistance(points[i - 1], points[i]);
+      parameters.push(total);
+    }
+    if (total <= 0.001) return null;
+    for (let i = 1; i < parameters.length; i += 1) {
+      parameters[i] /= total;
+    }
+    return parameters;
+  }
+
+  function cubicSegmentFitError(points, startIndex, endIndex, parameters, curve) {
+    let maxError = 0;
+    let totalError = 0;
+    let count = 0;
+
+    function addSample(point, parameter) {
+      const error = cubicPointDistance(point, curve, parameter);
+      maxError = Math.max(maxError, error);
+      totalError += error;
+      count += 1;
+    }
+
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      const parameter = parameters[i - startIndex];
+      addSample(points[i], parameter);
+      if (i === endIndex) continue;
+      const current = points[i];
+      const next = points[i + 1];
+      const segmentLength = pointDistance(current, next);
+      const extraSamples = Math.min(4, Math.floor(segmentLength / 2));
+      const nextParameter = parameters[i + 1 - startIndex];
+      for (let sampleIndex = 1; sampleIndex <= extraSamples; sampleIndex += 1) {
+        const amount = sampleIndex / (extraSamples + 1);
+        addSample(lerpPoint(current, next, amount), parameter + ((nextParameter - parameter) * amount));
+      }
+    }
+
+    return count ? {
+      maxError,
+      averageError: totalError / count
+    } : null;
+  }
+
+  function cubicPointDistance(point, curve, initialParameter) {
+    let low = Math.max(0, initialParameter - 0.08);
+    let high = Math.min(1, initialParameter + 0.08);
+    for (let i = 0; i < 8; i += 1) {
+      const left = low + ((high - low) / 3);
+      const right = high - ((high - low) / 3);
+      if (pointDistance(point, cubicPoint(curve, left)) < pointDistance(point, cubicPoint(curve, right))) {
+        high = right;
+      } else {
+        low = left;
+      }
+    }
+    const parameter = (low + high) / 2;
+    return pointDistance(point, cubicPoint(curve, parameter));
+  }
+
+  function cubicPoint(curve, parameter) {
+    const inverse = 1 - parameter;
+    const b0 = inverse * inverse * inverse;
+    const b1 = 3 * parameter * inverse * inverse;
+    const b2 = 3 * parameter * parameter * inverse;
+    const b3 = parameter * parameter * parameter;
+    return {
+      x: (b0 * curve.start.x) + (b1 * curve.control1.x) + (b2 * curve.control2.x) + (b3 * curve.end.x),
+      y: (b0 * curve.start.y) + (b1 * curve.control1.y) + (b2 * curve.control2.y) + (b3 * curve.end.y)
+    };
+  }
+
+  function maxSegmentLineDistance(points, startIndex, endIndex) {
+    let maxDistance = 0;
+    const start = points[startIndex];
+    const end = points[endIndex];
+    for (let i = startIndex + 1; i < endIndex; i += 1) {
+      maxDistance = Math.max(maxDistance, Math.sqrt(pointLineDistanceSq(points[i], start, end)));
+    }
+    return maxDistance;
   }
 
   function optimizeEndpointArc(points, startIndex, endIndex, initialCircle, turn, settings) {
@@ -2046,7 +2383,8 @@
       if (!arc) return;
       const fit = arcSegmentFitError(points, startIndex, endIndex, arc);
       if (!fit) return;
-      const objective = fit.maxError + (fit.averageError * 0.8) + (fit.maxAngleOverflow * radius * 1.5);
+      const tangentPenalty = fit.endpointTangentError * radius * settings.tangentErrorWeight;
+      const objective = fit.maxError + (fit.averageError * 0.8) + (fit.maxAngleOverflow * radius * 1.5) + tangentPenalty;
       if (!best || objective < best.objective) {
         best = {
           radius: arc.radius,
@@ -2145,10 +2483,9 @@
     let maxError = 0;
     let totalError = 0;
     let maxAngleOverflow = 0;
-    const count = endIndex - startIndex + 1;
+    let count = 0;
 
-    for (let i = startIndex; i <= endIndex; i += 1) {
-      const point = points[i];
+    function addSample(point) {
       const angle = Math.atan2(point.y - arc.center.y, point.x - arc.center.x);
       const progress = arc.sweepDelta >= 0
         ? normalizePositiveAngle(angle - arc.startAngle)
@@ -2162,13 +2499,48 @@
       maxAngleOverflow = Math.max(maxAngleOverflow, overflow);
       maxError = Math.max(maxError, error);
       totalError += error;
+      count += 1;
     }
+
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      addSample(points[i]);
+      if (i === endIndex) continue;
+      const current = points[i];
+      const next = points[i + 1];
+      const segmentLength = pointDistance(current, next);
+      const extraSamples = Math.min(5, Math.floor(segmentLength / Math.max(1.5, arc.radius * 0.018)));
+      for (let sampleIndex = 1; sampleIndex <= extraSamples; sampleIndex += 1) {
+        const amount = sampleIndex / (extraSamples + 1);
+        addSample(lerpPoint(current, next, amount));
+      }
+    }
+
+    const endpointTangentError = Math.max(
+      arcEndpointTangentError(points[startIndex], points[startIndex + 1], arc, true),
+      arcEndpointTangentError(points[endIndex], points[endIndex - 1], arc, false)
+    );
 
     return {
       maxError,
       averageError: totalError / count,
-      maxAngleOverflow
+      maxAngleOverflow,
+      endpointTangentError
     };
+  }
+
+  function arcEndpointTangentError(point, adjacent, arc, atStart) {
+    if (!point || !adjacent) return 0;
+    const angle = atStart ? arc.startAngle : arc.startAngle + arc.sweepDelta;
+    const direction = arc.sweepDelta >= 0
+      ? { x: -Math.sin(angle), y: Math.cos(angle) }
+      : { x: Math.sin(angle), y: -Math.cos(angle) };
+    const segment = atStart
+      ? { x: adjacent.x - point.x, y: adjacent.y - point.y }
+      : { x: point.x - adjacent.x, y: point.y - adjacent.y };
+    const segmentLength = Math.hypot(segment.x, segment.y);
+    if (segmentLength <= 0.001) return 0;
+    const dot = ((direction.x * segment.x) + (direction.y * segment.y)) / segmentLength;
+    return Math.acos(Math.max(-1, Math.min(1, dot)));
   }
 
   function fitCircleFromThreePoints(a, b, c) {
@@ -2190,9 +2562,12 @@
     return { x: centerX, y: centerY, cx: centerX, cy: centerY, radius };
   }
 
-  function segmentTurnConsistency(points, startIndex, endIndex) {
-    let totalTurn = 0;
-    let totalAbsTurn = 0;
+  function segmentCurvatureStats(points, startIndex, endIndex) {
+    let signedTurn = 0;
+    let absoluteTurn = 0;
+    let maxTurn = 0;
+    let significantTurns = 0;
+
     for (let i = startIndex + 1; i < endIndex; i += 1) {
       const previous = points[i - 1];
       const current = points[i];
@@ -2204,13 +2579,30 @@
       const aLength = Math.hypot(ax, ay);
       const bLength = Math.hypot(bx, by);
       if (aLength < 0.001 || bLength < 0.001) continue;
-      const delta = Math.atan2((ax * by) - (ay * bx), (ax * bx) + (ay * by));
-      if (Math.abs(delta) < 0.05) continue;
-      totalTurn += delta;
-      totalAbsTurn += Math.abs(delta);
+      const turn = Math.atan2((ax * by) - (ay * bx), (ax * bx) + (ay * by));
+      const absTurn = Math.abs(turn);
+      if (absTurn < 0.04) continue;
+      signedTurn += turn;
+      absoluteTurn += absTurn;
+      maxTurn = Math.max(maxTurn, absTurn);
+      significantTurns += 1;
     }
-    if (totalAbsTurn <= 0) return 0;
-    return Math.abs(totalTurn) / totalAbsTurn;
+
+    return {
+      signedTurn,
+      absoluteTurn,
+      consistency: absoluteTurn > 0 ? Math.abs(signedTurn) / absoluteTurn : 0,
+      maxTurnShare: absoluteTurn > 0 ? maxTurn / absoluteTurn : 1,
+      significantTurns
+    };
+  }
+
+  function segmentTurnConsistency(points, startIndex, endIndex) {
+    return segmentCurvatureStats(points, startIndex, endIndex).consistency;
+  }
+
+  function dotPoint(a, b) {
+    return (a.x * b.x) + (a.y * b.y);
   }
 
   function normalizeAngleDelta(delta) {
