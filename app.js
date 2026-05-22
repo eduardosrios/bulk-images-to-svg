@@ -47,6 +47,8 @@
     simplifyValue: document.getElementById("simplifyValue"),
     curveFit: document.getElementById("curveFit"),
     curveFitValue: document.getElementById("curveFitValue"),
+    arcCorrection: document.getElementById("arcCorrection"),
+    arcCorrectionValue: document.getElementById("arcCorrectionValue"),
     shapeDetect: document.getElementById("shapeDetect"),
     shapeDetectValue: document.getElementById("shapeDetectValue"),
     minRegion: document.getElementById("minRegion"),
@@ -154,6 +156,7 @@
       els.precision,
       els.simplify,
       els.curveFit,
+      els.arcCorrection,
       els.shapeDetect,
       els.minRegion,
       els.seamFix,
@@ -247,6 +250,7 @@
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
     els.curveFitValue.textContent = exactMode ? "N/A" : Number(els.curveFit.value).toFixed(2);
+    els.arcCorrectionValue.textContent = exactMode ? "N/A" : titleCase(els.arcCorrection.value);
     els.shapeDetectValue.textContent = exactMode ? "N/A" : titleCase(els.shapeDetect.value);
     els.minRegionValue.textContent = exactMode ? "N/A" : `${els.minRegion.value} px`;
     els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
@@ -258,6 +262,7 @@
     setControlDisabled(els.mergeColors, exactMode);
     setControlDisabled(els.simplify, exactMode);
     setControlDisabled(els.curveFit, exactMode);
+    setControlDisabled(els.arcCorrection, exactMode);
     setControlDisabled(els.shapeDetect, exactMode);
     setControlDisabled(els.minRegion, exactMode);
     setControlDisabled(els.seamFix, exactMode);
@@ -594,6 +599,7 @@
       precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
       curveFit: Number(els.curveFit.value),
+      arcCorrection: els.arcCorrection.value,
       shapeDetect: els.shapeDetect.value,
       minRegion: Number(els.minRegion.value),
       seamFix: Number(els.seamFix.value),
@@ -772,6 +778,12 @@
       if (primitive) {
         parts.push(primitive.d);
         cursor = primitive.cursor;
+        continue;
+      }
+      const arcPath = arcCorrectPath(points, cursor, options);
+      if (arcPath) {
+        parts.push(arcPath.d);
+        cursor = arcPath.cursor;
         continue;
       }
       const canCurve = tolerance > 0 && options.curveFit > 0;
@@ -1382,6 +1394,12 @@
         cursor = primitive.cursor;
         continue;
       }
+      const arcPath = arcCorrectPath(points, cursor, options);
+      if (arcPath) {
+        parts.push(arcPath.d);
+        cursor = arcPath.cursor;
+        continue;
+      }
       if (tolerance > 0 && options.curveFit > 0 && originalPointCount > 12) {
         parts.push(pointsToSmoothPath(points, cursor, options.curveFit));
         cursor = roundedPoint(smoothStartPoint(points));
@@ -1753,6 +1771,299 @@
       d: `M${nums(start.x, start.y)}a${nums(arcRadius, arcRadius)} 0 1 0 ${nums(arcRadius * 2, 0)}a${nums(arcRadius, arcRadius)} 0 1 0 ${nums(-arcRadius * 2, 0)}Z`,
       cursor: roundedPoint(start)
     };
+  }
+
+  function arcCorrectPath(points, previousCursor, options) {
+    if (!options || !options.arcCorrection || options.arcCorrection === "off" || points.length < 10) return null;
+    const settings = arcCorrectionSettings(options.arcCorrection);
+    const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
+    const start = roundedPoint(points[0]);
+    const commands = [`m${nums(start.x - origin.x, start.y - origin.y)}`];
+    let pendingCommand = "";
+    let pendingX = 0;
+    let pendingY = 0;
+    let pendingPairs = [];
+    let canUseImplicitLine = true;
+    let current = start;
+    let arcCount = 0;
+
+    function flushPending() {
+      if (!pendingCommand) return;
+      if (pendingCommand === "h") {
+        commands.push(`h${num(pendingX)}`);
+      } else if (pendingCommand === "v") {
+        commands.push(`v${num(pendingY)}`);
+      } else if (canUseImplicitLine) {
+        commands[commands.length - 1] = appendNumberData(commands[commands.length - 1], numsArray(pendingPairs));
+      } else {
+        commands.push(`l${numsArray(pendingPairs)}`);
+      }
+      canUseImplicitLine = false;
+      pendingCommand = "";
+      pendingX = 0;
+      pendingY = 0;
+      pendingPairs = [];
+    }
+
+    function queueSegment(command, dx, dy) {
+      if (nearlyZero(dx) && nearlyZero(dy)) return;
+      if (command === "l") {
+        if (pendingCommand !== "l") {
+          flushPending();
+          pendingCommand = "l";
+        }
+        const lastIndex = pendingPairs.length - 2;
+        if (lastIndex >= 0 && sameLineDirection(pendingPairs[lastIndex], pendingPairs[lastIndex + 1], dx, dy)) {
+          pendingPairs[lastIndex] += dx;
+          pendingPairs[lastIndex + 1] += dy;
+        } else {
+          pendingPairs.push(dx, dy);
+        }
+        return;
+      }
+      if (pendingCommand === command) {
+        pendingX += dx;
+        pendingY += dy;
+        return;
+      }
+      flushPending();
+      pendingCommand = command;
+      pendingX = dx;
+      pendingY = dy;
+    }
+
+    function queueLineTo(point) {
+      const target = roundedPoint(point);
+      const dx = target.x - current.x;
+      const dy = target.y - current.y;
+      if (nearlyZero(dy)) {
+        queueSegment("h", dx, 0);
+      } else if (nearlyZero(dx)) {
+        queueSegment("v", 0, dy);
+      } else {
+        queueSegment("l", dx, dy);
+      }
+      current = target;
+    }
+
+    let index = 0;
+    while (index < points.length - 1) {
+      const arc = findArcSegment(points, index, settings);
+      if (arc) {
+        flushPending();
+        const target = roundedPoint(points[arc.endIndex]);
+        const dx = target.x - current.x;
+        const dy = target.y - current.y;
+        if (!nearlyZero(dx) || !nearlyZero(dy)) {
+          commands.push(`a${nums(arc.radius, arc.radius)} 0 ${arc.largeArcFlag} ${arc.sweepFlag} ${nums(dx, dy)}`);
+          canUseImplicitLine = false;
+          arcCount += 1;
+        }
+        current = target;
+        index = arc.endIndex;
+      } else {
+        queueLineTo(points[index + 1]);
+        index += 1;
+      }
+    }
+
+    if (!arcCount) return null;
+    flushPending();
+    commands.push("Z");
+    return {
+      d: commands.join(""),
+      cursor: start
+    };
+  }
+
+  function arcCorrectionSettings(mode) {
+    if (mode === "aggressive") {
+      return {
+        minEdges: 6,
+        maxEdges: 96,
+        minRadius: 3,
+        minTurn: 0.2,
+        maxTurn: Math.PI * 1.45,
+        minSagitta: 0.75,
+        minError: 2.2,
+        errorRatio: 0.042,
+        averageErrorFactor: 0.72,
+        minDirectionConsistency: 0.72,
+        minSegmentTurnConsistency: 0.42,
+        minChordRadiusRatio: 0.85
+      };
+    }
+    return {
+      minEdges: 8,
+      maxEdges: 72,
+      minRadius: 4,
+      minTurn: 0.26,
+      maxTurn: Math.PI * 1.25,
+      minSagitta: 1,
+      minError: 1.45,
+      errorRatio: 0.026,
+      averageErrorFactor: 0.62,
+      minDirectionConsistency: 0.82,
+      minSegmentTurnConsistency: 0.58,
+      minChordRadiusRatio: 1.12
+    };
+  }
+
+  function findArcSegment(points, startIndex, settings) {
+    const remainingEdges = points.length - 1 - startIndex;
+    if (remainingEdges < settings.minEdges) return null;
+    const maxEdges = Math.min(settings.maxEdges, remainingEdges);
+    for (let edgeCount = maxEdges; edgeCount >= settings.minEdges; edgeCount -= 1) {
+      const candidate = evaluateArcCandidate(points, startIndex, startIndex + edgeCount, settings);
+      if (candidate) return candidate;
+    }
+    return null;
+  }
+
+  function evaluateArcCandidate(points, startIndex, endIndex, settings) {
+    const start = points[startIndex];
+    const end = points[endIndex];
+    const middle = points[Math.floor((startIndex + endIndex) / 2)];
+    const chord = pointDistance(start, end);
+    if (chord < 2) return null;
+
+    const sagitta = Math.sqrt(pointLineDistanceSq(middle, start, end));
+    if (sagitta < settings.minSagitta) return null;
+
+    const circle = fitCircleFromThreePoints(start, middle, end);
+    if (!circle || circle.radius < settings.minRadius || !Number.isFinite(circle.radius)) return null;
+    if (circle.radius < (chord / 2) - 0.001) return null;
+    if (chord / circle.radius < settings.minChordRadiusRatio) return null;
+
+    const maxError = Math.max(settings.minError, circle.radius * settings.errorRatio);
+    let totalError = 0;
+    let totalTurn = 0;
+    let totalAbsTurn = 0;
+    let previousAngle = Math.atan2(start.y - circle.cy, start.x - circle.cx);
+
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      const point = points[i];
+      const radialError = Math.abs(pointDistance(point, circle) - circle.radius);
+      if (radialError > maxError) return null;
+      totalError += radialError;
+
+      if (i > startIndex) {
+        const angle = Math.atan2(point.y - circle.cy, point.x - circle.cx);
+        const delta = normalizeAngleDelta(angle - previousAngle);
+        totalTurn += delta;
+        totalAbsTurn += Math.abs(delta);
+        previousAngle = angle;
+      }
+    }
+
+    const turn = Math.abs(totalTurn);
+    if (turn < settings.minTurn || turn > settings.maxTurn) return null;
+    if (totalAbsTurn <= 0 || turn / totalAbsTurn < settings.minDirectionConsistency) return null;
+    if (segmentTurnConsistency(points, startIndex, endIndex) < settings.minSegmentTurnConsistency) return null;
+
+    const averageError = totalError / (endIndex - startIndex + 1);
+    if (averageError > maxError * settings.averageErrorFactor) return null;
+
+    const radius = roundPathNumber(Math.max(circle.radius, (chord / 2) + 0.001));
+    const flags = resolveArcFlags(start, end, radius, circle, turn);
+    if (!flags || flags.centerError > maxError * 1.6) return null;
+    return {
+      endIndex,
+      radius: flags.radius,
+      largeArcFlag: flags.largeArcFlag,
+      sweepFlag: flags.sweepFlag
+    };
+  }
+
+  function resolveArcFlags(start, end, radius, circle, turn) {
+    const from = roundedPoint(start);
+    const to = roundedPoint(end);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const chord = Math.hypot(dx, dy);
+    if (chord <= 0) return null;
+
+    const safeRadius = Math.max(radius, (chord / 2) + 0.001);
+    const halfChord = chord / 2;
+    const heightSq = (safeRadius * safeRadius) - (halfChord * halfChord);
+    if (heightSq < -0.001) return null;
+
+    const height = Math.sqrt(Math.max(0, heightSq));
+    const midpointX = (from.x + to.x) / 2;
+    const midpointY = (from.y + to.y) / 2;
+    const perpendicularX = -dy / chord;
+    const perpendicularY = dx / chord;
+    const centerPlus = {
+      x: midpointX + (perpendicularX * height),
+      y: midpointY + (perpendicularY * height)
+    };
+    const centerMinus = {
+      x: midpointX - (perpendicularX * height),
+      y: midpointY - (perpendicularY * height)
+    };
+    const plusError = pointDistance(centerPlus, circle);
+    const minusError = pointDistance(centerMinus, circle);
+    const centerSign = plusError <= minusError ? 1 : -1;
+    const largeArcFlag = turn > Math.PI ? 1 : 0;
+    return {
+      radius: safeRadius,
+      largeArcFlag,
+      sweepFlag: centerSign < 0 ? largeArcFlag : 1 - largeArcFlag,
+      centerError: Math.min(plusError, minusError)
+    };
+  }
+
+  function fitCircleFromThreePoints(a, b, c) {
+    const ax = a.x;
+    const ay = a.y;
+    const bx = b.x;
+    const by = b.y;
+    const cx = c.x;
+    const cy = c.y;
+    const determinant = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    if (Math.abs(determinant) < 0.0001) return null;
+
+    const aSq = (ax * ax) + (ay * ay);
+    const bSq = (bx * bx) + (by * by);
+    const cSq = (cx * cx) + (cy * cy);
+    const centerX = ((aSq * (by - cy)) + (bSq * (cy - ay)) + (cSq * (ay - by))) / determinant;
+    const centerY = ((aSq * (cx - bx)) + (bSq * (ax - cx)) + (cSq * (bx - ax))) / determinant;
+    const radius = Math.hypot(ax - centerX, ay - centerY);
+    return { x: centerX, y: centerY, cx: centerX, cy: centerY, radius };
+  }
+
+  function segmentTurnConsistency(points, startIndex, endIndex) {
+    let totalTurn = 0;
+    let totalAbsTurn = 0;
+    for (let i = startIndex + 1; i < endIndex; i += 1) {
+      const previous = points[i - 1];
+      const current = points[i];
+      const next = points[i + 1];
+      const ax = current.x - previous.x;
+      const ay = current.y - previous.y;
+      const bx = next.x - current.x;
+      const by = next.y - current.y;
+      const aLength = Math.hypot(ax, ay);
+      const bLength = Math.hypot(bx, by);
+      if (aLength < 0.001 || bLength < 0.001) continue;
+      const delta = Math.atan2((ax * by) - (ay * bx), (ax * bx) + (ay * by));
+      if (Math.abs(delta) < 0.05) continue;
+      totalTurn += delta;
+      totalAbsTurn += Math.abs(delta);
+    }
+    if (totalAbsTurn <= 0) return 0;
+    return Math.abs(totalTurn) / totalAbsTurn;
+  }
+
+  function normalizeAngleDelta(delta) {
+    let result = delta;
+    while (result > Math.PI) result -= Math.PI * 2;
+    while (result < -Math.PI) result += Math.PI * 2;
+    return result;
+  }
+
+  function pointDistance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
   function boundsForPoints(points) {
