@@ -1776,7 +1776,7 @@
   function arcCorrectPath(points, previousCursor, options) {
     if (!options || !options.arcCorrection || options.arcCorrection === "off" || points.length < 10) return null;
     const settings = arcCorrectionSettings(options.arcCorrection);
-    const arcPoints = rotatePointsForArcCorrection(points);
+    const arcPoints = settings.rotateClosedContour ? rotatePointsForArcCorrection(points) : points;
     const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
     const start = roundedPoint(arcPoints[0]);
     const commands = [`m${nums(start.x - origin.x, start.y - origin.y)}`];
@@ -1851,7 +1851,7 @@
     let index = 0;
     while (index < arcPoints.length - 1) {
       const arc = findArcSegment(arcPoints, index, settings);
-      const curve = findBezierCurveSegment(arcPoints, index, settings);
+      const curve = settings.useBezier ? findBezierCurveSegment(arcPoints, index, settings) : null;
       const segment = chooseArcCorrectionSegment(arc, curve);
       if (segment) {
         flushPending();
@@ -1932,12 +1932,15 @@
   function arcCorrectionSettings(mode) {
     if (mode === "aggressive") {
       return {
-        minEdges: 5,
-        maxEdges: 192,
+        useBezier: false,
+        rotateClosedContour: false,
+        sampleArcSegments: false,
+        minEdges: 6,
+        maxEdges: 96,
         minRadius: 3,
-        minTurn: 0.1,
+        minTurn: 0.2,
         maxTurn: Math.PI * 1.45,
-        minSagitta: 0.45,
+        minSagitta: 0.75,
         minError: 2.2,
         errorRatio: 0.042,
         averageErrorFactor: 0.72,
@@ -1947,37 +1950,66 @@
         maxArcAngleOverflow: 0.08,
         fitSamples: 36,
         fineFitIterations: 14,
-        maxEndpointTangentError: 1.05,
-        tangentErrorWeight: 0.32,
-        lengthBonus: 0.035,
-        minDirectionConsistency: 0.66,
-        minSegmentTurnConsistency: 0.34,
-        minChordRadiusRatio: 0.18,
+        lengthBonus: 0.025,
+        minDirectionConsistency: 0.72,
+        minSegmentTurnConsistency: 0.42,
+        minChordRadiusRatio: 0.85
+      };
+    }
+    if (mode === "bezier") {
+      return {
+        useBezier: true,
+        rotateClosedContour: true,
+        sampleArcSegments: true,
+        minEdges: 5,
+        maxEdges: 180,
+        minRadius: 4,
+        minTurn: 0.12,
+        maxTurn: Math.PI * 1.25,
+        minSagitta: 0.55,
+        minError: 1.45,
+        errorRatio: 0.026,
+        averageErrorFactor: 0.62,
+        finalMinError: 0.95,
+        finalErrorRatio: 0.014,
+        finalAverageErrorFactor: 0.48,
+        maxArcAngleOverflow: 0.045,
+        fitSamples: 32,
+        fineFitIterations: 14,
+        maxEndpointTangentError: 0.78,
+        tangentErrorWeight: 0.45,
+        lengthBonus: 0.024,
+        minDirectionConsistency: 0.72,
+        minSegmentTurnConsistency: 0.38,
+        minChordRadiusRatio: 0.22,
         minSignificantTurns: 2,
-        maxSegmentTurnShare: 0.86,
-        bezierMinEdges: 5,
-        bezierMaxEdges: 160,
-        bezierMinTurn: 0.09,
-        bezierMaxTurn: Math.PI * 1.45,
-        bezierMinSagitta: 0.45,
-        bezierMinError: 1.35,
-        bezierErrorRatio: 0.024,
-        bezierAverageErrorFactor: 0.54,
-        bezierLengthBonus: 0.018,
-        bezierMinDirectionConsistency: 0.64,
-        bezierMinSegmentTurnConsistency: 0.32,
-        bezierMinSignificantTurns: 2,
-        bezierMaxSegmentTurnShare: 0.82,
-        bezierMaxControlRatio: 2.2
+        maxSegmentTurnShare: 0.72,
+        bezierMinEdges: 6,
+        bezierMaxEdges: 132,
+        bezierMinTurn: 0.12,
+        bezierMaxTurn: Math.PI * 1.25,
+        bezierMinSagitta: 0.55,
+        bezierMinError: 0.95,
+        bezierErrorRatio: 0.014,
+        bezierAverageErrorFactor: 0.46,
+        bezierLengthBonus: 0.012,
+        bezierMinDirectionConsistency: 0.7,
+        bezierMinSegmentTurnConsistency: 0.4,
+        bezierMinSignificantTurns: 3,
+        bezierMaxSegmentTurnShare: 0.68,
+        bezierMaxControlRatio: 1.8
       };
     }
     return {
-      minEdges: 5,
-      maxEdges: 180,
+      useBezier: false,
+      rotateClosedContour: false,
+      sampleArcSegments: false,
+      minEdges: 8,
+      maxEdges: 72,
       minRadius: 4,
-      minTurn: 0.12,
+      minTurn: 0.26,
       maxTurn: Math.PI * 1.25,
-      minSagitta: 0.55,
+      minSagitta: 1,
       minError: 1.45,
       errorRatio: 0.026,
       averageErrorFactor: 0.62,
@@ -1987,28 +2019,10 @@
       maxArcAngleOverflow: 0.045,
       fitSamples: 32,
       fineFitIterations: 14,
-      maxEndpointTangentError: 0.78,
-      tangentErrorWeight: 0.45,
-      lengthBonus: 0.024,
-      minDirectionConsistency: 0.72,
-      minSegmentTurnConsistency: 0.38,
-      minChordRadiusRatio: 0.22,
-      minSignificantTurns: 3,
-      maxSegmentTurnShare: 0.72,
-      bezierMinEdges: 6,
-      bezierMaxEdges: 132,
-      bezierMinTurn: 0.12,
-      bezierMaxTurn: Math.PI * 1.25,
-      bezierMinSagitta: 0.55,
-      bezierMinError: 0.95,
-      bezierErrorRatio: 0.014,
-      bezierAverageErrorFactor: 0.46,
-      bezierLengthBonus: 0.012,
-      bezierMinDirectionConsistency: 0.7,
-      bezierMinSegmentTurnConsistency: 0.4,
-      bezierMinSignificantTurns: 3,
-      bezierMaxSegmentTurnShare: 0.68,
-      bezierMaxControlRatio: 1.8
+      lengthBonus: 0.01,
+      minDirectionConsistency: 0.82,
+      minSegmentTurnConsistency: 0.58,
+      minChordRadiusRatio: 1.12
     };
   }
 
@@ -2084,10 +2098,12 @@
     const turn = Math.abs(totalTurn);
     if (turn < settings.minTurn || turn > settings.maxTurn) return null;
     if (totalAbsTurn <= 0 || turn / totalAbsTurn < settings.minDirectionConsistency) return null;
-    const curvature = segmentCurvatureStats(points, startIndex, endIndex);
-    if (curvature.consistency < settings.minSegmentTurnConsistency) return null;
-    if (curvature.significantTurns < settings.minSignificantTurns) return null;
-    if (curvature.maxTurnShare > settings.maxSegmentTurnShare) return null;
+    if (segmentTurnConsistency(points, startIndex, endIndex) < settings.minSegmentTurnConsistency) return null;
+    if (Number.isFinite(settings.minSignificantTurns) || Number.isFinite(settings.maxSegmentTurnShare)) {
+      const curvature = segmentCurvatureStats(points, startIndex, endIndex);
+      if (Number.isFinite(settings.minSignificantTurns) && curvature.significantTurns < settings.minSignificantTurns) return null;
+      if (Number.isFinite(settings.maxSegmentTurnShare) && curvature.maxTurnShare > settings.maxSegmentTurnShare) return null;
+    }
 
     const averageError = totalError / (endIndex - startIndex + 1);
     if (averageError > maxError * settings.averageErrorFactor) return null;
@@ -2098,7 +2114,7 @@
     if (flags.fit.maxError > finalMaxError) return null;
     if (flags.fit.averageError > finalMaxError * settings.finalAverageErrorFactor) return null;
     if (flags.fit.maxAngleOverflow > settings.maxArcAngleOverflow) return null;
-    if (flags.fit.endpointTangentError > settings.maxEndpointTangentError) return null;
+    if (Number.isFinite(settings.maxEndpointTangentError) && flags.fit.endpointTangentError > settings.maxEndpointTangentError) return null;
 
     return {
       endIndex,
@@ -2381,9 +2397,11 @@
       const radius = Math.hypot(start.x - center.x, start.y - center.y);
       const arc = endpointArcForCenter(start, end, center, radius, largeArcFlag);
       if (!arc) return;
-      const fit = arcSegmentFitError(points, startIndex, endIndex, arc);
+      const fit = arcSegmentFitError(points, startIndex, endIndex, arc, settings);
       if (!fit) return;
-      const tangentPenalty = fit.endpointTangentError * radius * settings.tangentErrorWeight;
+      const tangentPenalty = Number.isFinite(settings.tangentErrorWeight)
+        ? fit.endpointTangentError * radius * settings.tangentErrorWeight
+        : 0;
       const objective = fit.maxError + (fit.averageError * 0.8) + (fit.maxAngleOverflow * radius * 1.5) + tangentPenalty;
       if (!best || objective < best.objective) {
         best = {
@@ -2477,7 +2495,7 @@
     return delta;
   }
 
-  function arcSegmentFitError(points, startIndex, endIndex, arc) {
+  function arcSegmentFitError(points, startIndex, endIndex, arc, settings) {
     const span = Math.abs(arc.sweepDelta);
     if (!Number.isFinite(span) || span <= 0.0001 || span >= Math.PI * 2) return null;
     let maxError = 0;
@@ -2504,7 +2522,7 @@
 
     for (let i = startIndex; i <= endIndex; i += 1) {
       addSample(points[i]);
-      if (i === endIndex) continue;
+      if (!settings || !settings.sampleArcSegments || i === endIndex) continue;
       const current = points[i];
       const next = points[i + 1];
       const segmentLength = pointDistance(current, next);
@@ -2598,7 +2616,26 @@
   }
 
   function segmentTurnConsistency(points, startIndex, endIndex) {
-    return segmentCurvatureStats(points, startIndex, endIndex).consistency;
+    let totalTurn = 0;
+    let totalAbsTurn = 0;
+    for (let i = startIndex + 1; i < endIndex; i += 1) {
+      const previous = points[i - 1];
+      const current = points[i];
+      const next = points[i + 1];
+      const ax = current.x - previous.x;
+      const ay = current.y - previous.y;
+      const bx = next.x - current.x;
+      const by = next.y - current.y;
+      const aLength = Math.hypot(ax, ay);
+      const bLength = Math.hypot(bx, by);
+      if (aLength < 0.001 || bLength < 0.001) continue;
+      const delta = Math.atan2((ax * by) - (ay * bx), (ax * bx) + (ay * by));
+      if (Math.abs(delta) < 0.05) continue;
+      totalTurn += delta;
+      totalAbsTurn += Math.abs(delta);
+    }
+    if (totalAbsTurn <= 0) return 0;
+    return Math.abs(totalTurn) / totalAbsTurn;
   }
 
   function dotPoint(a, b) {
