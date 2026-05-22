@@ -1674,15 +1674,42 @@
     const areaError = Math.abs(polygon - ellipseArea) / ellipseArea;
     if (areaError > maxAreaError) return null;
 
-    const circleLike = Math.abs(rx - ry) <= (mode === "aggressive" ? Math.max(1, radius * 0.04) : Math.max(0.5, radius * 0.018));
-    const arcRx = circleLike ? radius : rx;
-    const arcRy = circleLike ? radius : ry;
+    const aspectDelta = Math.abs(rx - ry) / Math.max(rx, ry);
+    const circleAspectTolerance = mode === "aggressive" ? 0.14 : 0.08;
+    if (aspectDelta <= circleAspectTolerance) {
+      const circle = detectCirclePath(points, cx, cy, radius, mode);
+      return circle || null;
+    }
+
+    const arcRx = rx;
+    const arcRy = ry;
     const start = { x: cx - arcRx, y: cy };
 
     return {
       d: `M${nums(start.x, start.y)}a${nums(arcRx, arcRy)} 0 1 0 ${nums(arcRx * 2, 0)}a${nums(arcRx, arcRy)} 0 1 0 ${nums(-arcRx * 2, 0)}Z`,
       cursor: roundedPoint(start),
       maxPointError
+    };
+  }
+
+  function detectCirclePath(points, cx, cy, radius, mode) {
+    const maxError = mode === "aggressive" ? Math.max(1.4, radius * 0.055) : Math.max(0.65, radius * 0.028);
+    let totalError = 0;
+
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      const distance = Math.hypot(point.x - cx, point.y - cy);
+      const error = Math.abs(distance - radius);
+      totalError += error;
+      if (error > maxError) return null;
+    }
+
+    if (totalError / points.length > maxError * 0.45) return null;
+
+    const start = { x: cx - radius, y: cy };
+    return {
+      d: `M${nums(start.x, start.y)}a${nums(radius, radius)} 0 1 0 ${nums(radius * 2, 0)}a${nums(radius, radius)} 0 1 0 ${nums(-radius * 2, 0)}Z`,
+      cursor: roundedPoint(start)
     };
   }
 
