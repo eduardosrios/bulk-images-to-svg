@@ -349,6 +349,7 @@ h1 {
 
 .empty-drop-target {
   min-height: clamp(190px, 26vw, 260px);
+  position: relative;
   align-items: center;
   justify-content: center;
   gap: 58px;
@@ -360,10 +361,58 @@ h1 {
   transition: background 140ms ease, transform 140ms ease;
 }
 
+.drop-corners {
+  position: absolute;
+  inset: 18px;
+  pointer-events: none;
+}
+
+.drop-corner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 4px solid #ff0000;
+  border-radius: 4px;
+  opacity: 0;
+  transform: scale(0);
+  transition: transform 220ms ease, opacity 120ms ease;
+}
+
+.drop-corner-top-left {
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+
+.drop-corner-top-right {
+  top: 0;
+  right: 0;
+  transform-origin: top right;
+}
+
+.drop-corner-bottom-left {
+  bottom: 0;
+  left: 0;
+  transform-origin: bottom left;
+}
+
+.drop-corner-bottom-right {
+  right: 0;
+  bottom: 0;
+  transform-origin: bottom right;
+}
+
 .app-shell.is-empty .drop-zone:hover .empty-drop-target,
 .app-shell.is-empty .drop-zone.is-over .empty-drop-target {
   background: #050505;
   transform: translateY(-2px);
+}
+
+.app-shell.is-empty .drop-zone:hover .drop-corner,
+.app-shell.is-empty .drop-zone:focus-within .drop-corner,
+.app-shell.is-empty .drop-zone.is-over .drop-corner {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .format-card-row {
