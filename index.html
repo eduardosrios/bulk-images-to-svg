@@ -166,27 +166,27 @@
             <input id="curveFit" type="range" min="0" max="1" step="0.05" value="1">
           </section>
 
-          <section class="control-group" aria-labelledby="arcCorrectionLabel">
+          <section class="control-group" aria-labelledby="shapeDetectLabel">
             <div class="group-header">
-              <h2 id="arcCorrectionLabel">Arc correction</h2>
-              <output id="arcCorrectionValue">Safe</output>
+              <h2 id="shapeDetectLabel">Shape detect</h2>
+              <output id="shapeDetectValue">Light</output>
             </div>
-            <select id="arcCorrection">
+            <select id="shapeDetect">
               <option value="off">Off</option>
-              <option value="safe" selected>Safe</option>
-              <option value="bezier">Bezier</option>
+              <option value="safe" selected>Light</option>
               <option value="aggressive">Aggressive</option>
             </select>
           </section>
 
-          <section class="control-group" aria-labelledby="shapeDetectLabel">
+          <section class="control-group" aria-labelledby="arcCorrectionLabel">
             <div class="group-header">
-              <h2 id="shapeDetectLabel">Shape detect</h2>
-              <output id="shapeDetectValue">Safe</output>
+              <h2 id="arcCorrectionLabel">Arc correction</h2>
+              <output id="arcCorrectionValue">Off</output>
             </div>
-            <select id="shapeDetect">
-              <option value="off">Off</option>
-              <option value="safe" selected>Safe</option>
+            <select id="arcCorrection">
+              <option value="off" selected>Off</option>
+              <option value="safe">Light</option>
+              <option value="bezier">Bezier</option>
               <option value="aggressive">Aggressive</option>
             </select>
           </section>
@@ -209,7 +209,7 @@
 
           <section class="control-group" aria-labelledby="numberPrecisionLabel">
             <div class="group-header">
-              <h2 id="numberPrecisionLabel">Number precision</h2>
+              <h2 id="numberPrecisionLabel">Decimal Precision</h2>
               <output id="numberPrecisionValue">1</output>
             </div>
             <input id="numberPrecision" type="range" min="1" max="8" step="1" value="1">

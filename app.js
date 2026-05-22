@@ -204,8 +204,8 @@
     els.appShell.classList.remove("is-preview-zoom-resetting");
     els.appShell.style.setProperty("--preview-zoom-x", `${(position.x * 100).toFixed(2)}%`);
     els.appShell.style.setProperty("--preview-zoom-y", `${(position.y * 100).toFixed(2)}%`);
-    els.appShell.style.setProperty("--preview-zoom-scale", "8");
-    zoomSvgPreview(position.x, position.y, 8, wasZooming ? 0 : 900);
+    els.appShell.style.setProperty("--preview-zoom-scale", "2");
+    zoomSvgPreview(position.x, position.y, 2, wasZooming ? 0 : 900);
   }
 
   function resetPreviewZoom() {
@@ -250,8 +250,8 @@
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
     els.curveFitValue.textContent = exactMode ? "N/A" : Number(els.curveFit.value).toFixed(2);
-    els.arcCorrectionValue.textContent = exactMode ? "N/A" : titleCase(els.arcCorrection.value);
-    els.shapeDetectValue.textContent = exactMode ? "N/A" : titleCase(els.shapeDetect.value);
+    els.arcCorrectionValue.textContent = exactMode ? "N/A" : optionLabel(els.arcCorrection.value);
+    els.shapeDetectValue.textContent = exactMode ? "N/A" : optionLabel(els.shapeDetect.value);
     els.minRegionValue.textContent = exactMode ? "N/A" : `${els.minRegion.value} px`;
     els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
     els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
@@ -3410,6 +3410,10 @@
 
   function titleCase(value) {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+  }
+
+  function optionLabel(value) {
+    return value === "safe" ? "Light" : titleCase(value);
   }
 
   function precisionStatus(raster, result, options) {
