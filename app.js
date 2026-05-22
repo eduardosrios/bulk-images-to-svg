@@ -1600,6 +1600,9 @@
     const rectangle = detectAxisAlignedRectangle(points, bounds, options.shapeDetect);
     if (rectangle) return rectangle;
 
+    const circle = detectNearCirclePath(points, bounds, options.shapeDetect);
+    if (circle) return circle;
+
     const ellipse = detectEllipsePath(points, bounds, options.shapeDetect);
     if (ellipse) return ellipse;
 
@@ -1639,6 +1642,35 @@
     };
   }
 
+  function detectNearCirclePath(points, bounds, mode) {
+    if (points.length < 8) return null;
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    if (width < 3 || height < 3) return null;
+
+    const aspectDelta = Math.abs(width - height) / Math.max(width, height);
+    if (aspectDelta > 0.2) return null;
+
+    const polygon = Math.abs(polygonArea(points));
+    if (!polygon) return null;
+
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    const radius = Math.min(width, height) / 2;
+    const maxError = mode === "aggressive" ? Math.max(2.8, radius * 0.28) : Math.max(2, radius * 0.22);
+    let totalError = 0;
+
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      const error = Math.abs(Math.hypot(point.x - cx, point.y - cy) - radius);
+      totalError += error;
+      if (error > maxError) return null;
+    }
+
+    if (totalError / points.length > maxError * 0.65) return null;
+    return circlePath(cx, cy, radius);
+  }
+
   function detectEllipsePath(points, bounds, mode) {
     if (points.length < 8) return null;
     const width = bounds.maxX - bounds.minX;
@@ -1675,10 +1707,8 @@
     if (areaError > maxAreaError) return null;
 
     const aspectDelta = Math.abs(rx - ry) / Math.max(rx, ry);
-    if (aspectDelta <= 0.5) {
-      const areaRadius = Math.sqrt(polygon / Math.PI);
-      const circle = detectCirclePath(points, cx, cy, areaRadius, mode, true);
-      return circle || null;
+    if (aspectDelta <= 0.2) {
+      return circlePath(cx, cy, Math.min(rx, ry));
     }
 
     const arcRx = rx;
@@ -1692,25 +1722,11 @@
     };
   }
 
-  function detectCirclePath(points, cx, cy, radius, mode, relaxed) {
-    const maxError = relaxed
-      ? (mode === "aggressive" ? Math.max(2.2, radius * 0.12) : Math.max(1.35, radius * 0.075))
-      : (mode === "aggressive" ? Math.max(1.4, radius * 0.055) : Math.max(0.65, radius * 0.028));
-    let totalError = 0;
-
-    for (let i = 0; i < points.length; i += 1) {
-      const point = points[i];
-      const distance = Math.hypot(point.x - cx, point.y - cy);
-      const error = Math.abs(distance - radius);
-      totalError += error;
-      if (error > maxError) return null;
-    }
-
-    if (totalError / points.length > maxError * (relaxed ? 0.65 : 0.45)) return null;
-
-    const start = { x: cx - radius, y: cy };
+  function circlePath(cx, cy, radius) {
+    const arcRadius = roundPathNumber(radius);
+    const start = { x: cx - arcRadius, y: cy };
     return {
-      d: `M${nums(start.x, start.y)}a${nums(radius, radius)} 0 1 0 ${nums(radius * 2, 0)}a${nums(radius, radius)} 0 1 0 ${nums(-radius * 2, 0)}Z`,
+      d: `M${nums(start.x, start.y)}a${nums(arcRadius, arcRadius)} 0 1 0 ${nums(arcRadius * 2, 0)}a${nums(arcRadius, arcRadius)} 0 1 0 ${nums(-arcRadius * 2, 0)}Z`,
       cursor: roundedPoint(start)
     };
   }
