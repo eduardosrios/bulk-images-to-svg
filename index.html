@@ -111,6 +111,14 @@
             <input id="paletteSize" type="range" min="2" max="256" step="1" value="256">
           </section>
 
+          <section class="control-group" aria-labelledby="mergeColorsLabel">
+            <div class="group-header">
+              <h2 id="mergeColorsLabel">Merge colors</h2>
+              <output id="mergeColorsValue">0</output>
+            </div>
+            <input id="mergeColors" type="range" min="0" max="96" step="1" value="0">
+          </section>
+
           <section class="control-group" aria-labelledby="alphaLabel">
             <div class="group-header">
               <h2 id="alphaLabel">Alpha cutoff</h2>
@@ -148,6 +156,22 @@
               <output id="simplifyValue">0.0</output>
             </div>
             <input id="simplify" type="range" min="0" max="3" step="0.1" value="0">
+          </section>
+
+          <section class="control-group" aria-labelledby="curveFitLabel">
+            <div class="group-header">
+              <h2 id="curveFitLabel">Curve fit</h2>
+              <output id="curveFitValue">1.0</output>
+            </div>
+            <input id="curveFit" type="range" min="0" max="1" step="0.05" value="1">
+          </section>
+
+          <section class="control-group" aria-labelledby="minRegionLabel">
+            <div class="group-header">
+              <h2 id="minRegionLabel">Min region</h2>
+              <output id="minRegionValue">0 px</output>
+            </div>
+            <input id="minRegion" type="range" min="0" max="250" step="1" value="0">
           </section>
 
           <section class="control-group" aria-labelledby="seamFixLabel">

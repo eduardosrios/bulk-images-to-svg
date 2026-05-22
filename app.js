@@ -35,6 +35,8 @@
     outputBadge: document.getElementById("outputBadge"),
     paletteSize: document.getElementById("paletteSize"),
     paletteValue: document.getElementById("paletteValue"),
+    mergeColors: document.getElementById("mergeColors"),
+    mergeColorsValue: document.getElementById("mergeColorsValue"),
     alphaThreshold: document.getElementById("alphaThreshold"),
     alphaValue: document.getElementById("alphaValue"),
     maxDimension: document.getElementById("maxDimension"),
@@ -43,6 +45,10 @@
     precisionValue: document.getElementById("precisionValue"),
     simplify: document.getElementById("simplify"),
     simplifyValue: document.getElementById("simplifyValue"),
+    curveFit: document.getElementById("curveFit"),
+    curveFitValue: document.getElementById("curveFitValue"),
+    minRegion: document.getElementById("minRegion"),
+    minRegionValue: document.getElementById("minRegionValue"),
     seamFix: document.getElementById("seamFix"),
     seamFixValue: document.getElementById("seamFixValue"),
     numberPrecision: document.getElementById("numberPrecision"),
@@ -138,7 +144,19 @@
       });
     });
 
-    [els.paletteSize, els.alphaThreshold, els.maxDimension, els.precision, els.simplify, els.seamFix, els.numberPrecision, els.matte].forEach(function (control) {
+    [
+      els.paletteSize,
+      els.mergeColors,
+      els.alphaThreshold,
+      els.maxDimension,
+      els.precision,
+      els.simplify,
+      els.curveFit,
+      els.minRegion,
+      els.seamFix,
+      els.numberPrecision,
+      els.matte
+    ].forEach(function (control) {
       control.addEventListener("input", function () {
         syncControlLabels();
         queueProcess();
@@ -220,17 +238,23 @@
     syncControlAvailability(exactMode);
     syncPreviewBackground();
     els.paletteValue.textContent = exactMode ? "N/A" : els.paletteSize.value;
+    els.mergeColorsValue.textContent = exactMode ? "N/A" : els.mergeColors.value;
     els.alphaValue.textContent = els.alphaThreshold.value;
     els.resolutionValue.textContent = els.maxDimension.value;
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
+    els.curveFitValue.textContent = exactMode ? "N/A" : Number(els.curveFit.value).toFixed(2);
+    els.minRegionValue.textContent = exactMode ? "N/A" : `${els.minRegion.value} px`;
     els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
     els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
   }
 
   function syncControlAvailability(exactMode) {
     setControlDisabled(els.paletteSize, exactMode);
+    setControlDisabled(els.mergeColors, exactMode);
     setControlDisabled(els.simplify, exactMode);
+    setControlDisabled(els.curveFit, exactMode);
+    setControlDisabled(els.minRegion, exactMode);
     setControlDisabled(els.seamFix, exactMode);
     setControlDisabled(els.numberPrecision, exactMode);
   }
@@ -559,10 +583,13 @@
     return {
       mode: modeInput ? modeInput.value : "trace",
       paletteSize: Number(els.paletteSize.value),
+      mergeColors: Number(els.mergeColors.value),
       alphaThreshold: Number(els.alphaThreshold.value),
       maxDimension: Number(els.maxDimension.value),
       precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
+      curveFit: Number(els.curveFit.value),
+      minRegion: Number(els.minRegion.value),
       seamFix: Number(els.seamFix.value),
       numberPrecision: Number(els.numberPrecision.value),
       matte: els.matte.value
@@ -705,7 +732,7 @@
 
     for (let colorIndex = 0; colorIndex < quantized.palette.length; colorIndex += 1) {
       const color = quantized.palette[colorIndex];
-      const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance);
+      const d = buildTracePath(quantized.indexMap, width, height, colorIndex, traceTolerance, options);
       if (!d) continue;
       const opacity = color.opacity < 0.995 ? ` fill-opacity="${trimNumber(color.opacity)}"` : "";
       const seam = seamFixAttr(color, options);
@@ -732,10 +759,12 @@
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(removeDuplicatePoints(loops[i]));
       pointCount += points.length;
+      if (options.minRegion > 0 && Math.abs(polygonArea(points)) < options.minRegion) continue;
       points = simplifyClosed(points, pathOptimizeTolerance);
       if (points.length < 3) continue;
-      parts.push(tolerance > 0 ? pointsToSmoothPath(points, cursor) : pointsToPath(points, cursor));
-      cursor = tolerance > 0 ? roundedPoint(smoothStartPoint(points)) : roundedPoint(points[0]);
+      const canCurve = tolerance > 0 && options.curveFit > 0;
+      parts.push(canCurve ? pointsToSmoothPath(points, cursor, options.curveFit) : pointsToPath(points, cursor));
+      cursor = canCurve ? roundedPoint(smoothStartPoint(points)) : roundedPoint(points[0]);
     }
 
     return {
@@ -1134,7 +1163,72 @@
       if (value >= 0) indexMap[i] = remap[value];
     }
 
+    if (options.mergeColors > 0 && palette.length > 1) {
+      return mergeSimilarColors(indexMap, palette, activeIndices.length, options.mergeColors);
+    }
+
     return { indexMap, palette, activePixels: activeIndices.length };
+  }
+
+  function mergeSimilarColors(indexMap, palette, activePixels, threshold) {
+    const thresholdSq = threshold * threshold;
+    const merged = [];
+    const remap = new Int16Array(palette.length);
+
+    for (let i = 0; i < palette.length; i += 1) {
+      const color = palette[i];
+      const rgb = hexToRgb(color.hex);
+      let bestIndex = -1;
+      let bestDistance = Infinity;
+
+      for (let j = 0; j < merged.length; j += 1) {
+        const candidate = merged[j];
+        if (Math.abs(candidate.opacity - color.opacity) > 0.12) continue;
+        const distance = colorDistanceSq(rgb, candidate);
+        if (distance <= thresholdSq && distance < bestDistance) {
+          bestIndex = j;
+          bestDistance = distance;
+        }
+      }
+
+      if (bestIndex === -1) {
+        remap[i] = merged.length;
+        merged.push({
+          r: rgb.r,
+          g: rgb.g,
+          b: rgb.b,
+          opacity: color.opacity,
+          count: color.count
+        });
+        continue;
+      }
+
+      remap[i] = bestIndex;
+      const target = merged[bestIndex];
+      const total = target.count + color.count;
+      target.r = (target.r * target.count + rgb.r * color.count) / total;
+      target.g = (target.g * target.count + rgb.g * color.count) / total;
+      target.b = (target.b * target.count + rgb.b * color.count) / total;
+      target.opacity = (target.opacity * target.count + color.opacity * color.count) / total;
+      target.count = total;
+    }
+
+    for (let i = 0; i < indexMap.length; i += 1) {
+      const value = indexMap[i];
+      if (value >= 0) indexMap[i] = remap[value];
+    }
+
+    return {
+      indexMap,
+      palette: merged.map(function (color) {
+        return {
+          hex: rgbToHex(Math.round(color.r), Math.round(color.g), Math.round(color.b)),
+          opacity: color.opacity,
+          count: color.count
+        };
+      }),
+      activePixels
+    };
   }
 
   function createSample(indices, data, options) {
@@ -1192,6 +1286,13 @@
     return bestIndex;
   }
 
+  function colorDistanceSq(a, b) {
+    const dr = a.r - b.r;
+    const dg = a.g - b.g;
+    const db = a.b - b.b;
+    return dr * dr + dg * dg + db * db;
+  }
+
   function buildSvg(input) {
     const escapedName = escapeXml(input.sourceName.replace(/\.[^.]+$/, "") || "converted");
     const label = escapedName ? ` aria-label="${escapedName}"` : "";
@@ -1241,7 +1342,7 @@
     return segments.join("");
   }
 
-  function buildTracePath(indexMap, width, height, colorIndex, tolerance) {
+  function buildTracePath(indexMap, width, height, colorIndex, tolerance, options) {
     const mask = new Uint8Array(width * height);
     let filled = 0;
     for (let i = 0; i < indexMap.length; i += 1) {
@@ -1258,12 +1359,13 @@
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(loops[i]);
       const originalPointCount = points.length;
+      if (options.minRegion > 0 && Math.abs(polygonArea(points)) < options.minRegion) continue;
       if (tolerance > 0) {
         points = simplifyClosed(points, tolerance);
       }
       if (points.length < 3) continue;
-      if (tolerance > 0 && originalPointCount > 12) {
-        parts.push(pointsToSmoothPath(points, cursor));
+      if (tolerance > 0 && options.curveFit > 0 && originalPointCount > 12) {
+        parts.push(pointsToSmoothPath(points, cursor, options.curveFit));
         cursor = roundedPoint(smoothStartPoint(points));
       } else {
         parts.push(pointsToPath(points, cursor));
@@ -1460,6 +1562,16 @@
     return px * px + py * py;
   }
 
+  function polygonArea(points) {
+    let area = 0;
+    for (let i = 0; i < points.length; i += 1) {
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      area += current.x * next.y - next.x * current.y;
+    }
+    return area / 2;
+  }
+
   function pointsToPath(points, cursor) {
     const origin = roundedPoint(cursor || { x: 0, y: 0 });
     const start = roundedPoint(points[0]);
@@ -1541,8 +1653,9 @@
     return nearlyZero(cross) && dot > 0;
   }
 
-  function pointsToSmoothPath(points, previousCursor) {
+  function pointsToSmoothPath(points, previousCursor, strength) {
     const commands = [];
+    const curveStrength = Math.max(0, Math.min(1, typeof strength === "number" ? strength : 1));
     const lastIndex = points.length - 1;
     const start = roundedPoint(midpoint(points[lastIndex], points[0]));
     const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
@@ -1553,7 +1666,9 @@
       const current = roundedPoint(points[i]);
       const next = points[(i + 1) % points.length];
       const mid = roundedPoint(midpoint(current, next));
-      commands.push(`q${nums(current.x - cursor.x, current.y - cursor.y, mid.x - cursor.x, mid.y - cursor.y)}`);
+      const lineControl = midpoint(cursor, mid);
+      const control = roundedPoint(lerpPoint(lineControl, current, curveStrength));
+      commands.push(`q${nums(control.x - cursor.x, control.y - cursor.y, mid.x - cursor.x, mid.y - cursor.y)}`);
       cursor = mid;
     }
 
@@ -1576,6 +1691,13 @@
     return {
       x: (a.x + b.x) / 2,
       y: (a.y + b.y) / 2
+    };
+  }
+
+  function lerpPoint(a, b, amount) {
+    return {
+      x: a.x + (b.x - a.x) * amount,
+      y: a.y + (b.y - a.y) * amount
     };
   }
 
@@ -2086,6 +2208,22 @@
       return `#${long[1]}${long[3]}${long[5]}`;
     }
     return long;
+  }
+
+  function hexToRgb(hex) {
+    const normalized = normalizeHex(hex);
+    if (normalized.length === 4) {
+      return {
+        r: Number.parseInt(normalized[1] + normalized[1], 16),
+        g: Number.parseInt(normalized[2] + normalized[2], 16),
+        b: Number.parseInt(normalized[3] + normalized[3], 16)
+      };
+    }
+    return {
+      r: Number.parseInt(normalized.slice(1, 3), 16),
+      g: Number.parseInt(normalized.slice(3, 5), 16),
+      b: Number.parseInt(normalized.slice(5, 7), 16)
+    };
   }
 
   function toHex(value) {
