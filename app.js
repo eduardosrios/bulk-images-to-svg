@@ -1657,17 +1657,41 @@
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cy = (bounds.minY + bounds.maxY) / 2;
     const radius = Math.min(width, height) / 2;
-    const maxError = mode === "aggressive" ? Math.max(2.8, radius * 0.28) : Math.max(2, radius * 0.22);
+    const circleArea = Math.PI * radius * radius;
+    const areaError = Math.abs(polygon - circleArea) / circleArea;
+    const maxAreaError = mode === "aggressive" ? 0.14 : 0.09;
+    if (areaError > maxAreaError) return null;
+
+    const maxError = mode === "aggressive" ? Math.max(3.2, radius * 0.14) : Math.max(2.4, radius * 0.1);
+    const sampleStep = Math.max(4, radius * 0.08);
     let totalError = 0;
+    let sampleCount = 0;
+
+    function addRadialSample(point) {
+      const error = Math.abs(Math.hypot(point.x - cx, point.y - cy) - radius);
+      totalError += error;
+      sampleCount += 1;
+      if (error > maxError) return null;
+      return error;
+    }
 
     for (let i = 0; i < points.length; i += 1) {
       const point = points[i];
-      const error = Math.abs(Math.hypot(point.x - cx, point.y - cy) - radius);
-      totalError += error;
-      if (error > maxError) return null;
+      const next = points[(i + 1) % points.length];
+      if (addRadialSample(point) === null) return null;
+      const segmentLength = Math.hypot(next.x - point.x, next.y - point.y);
+      const extraSamples = Math.min(8, Math.floor(segmentLength / sampleStep));
+      for (let sampleIndex = 1; sampleIndex <= extraSamples; sampleIndex += 1) {
+        const amount = sampleIndex / (extraSamples + 1);
+        const sample = {
+          x: point.x + ((next.x - point.x) * amount),
+          y: point.y + ((next.y - point.y) * amount)
+        };
+        if (addRadialSample(sample) === null) return null;
+      }
     }
 
-    if (totalError / points.length > maxError * 0.65) return null;
+    if (totalError / sampleCount > maxError * 0.55) return null;
     return circlePath(cx, cy, radius);
   }
 
@@ -1708,7 +1732,7 @@
 
     const aspectDelta = Math.abs(rx - ry) / Math.max(rx, ry);
     if (aspectDelta <= 0.2) {
-      return circlePath(cx, cy, Math.min(rx, ry));
+      return null;
     }
 
     const arcRx = rx;
