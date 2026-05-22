@@ -1675,7 +1675,7 @@
     if (areaError > maxAreaError) return null;
 
     const aspectDelta = Math.abs(rx - ry) / Math.max(rx, ry);
-    if (aspectDelta <= 0.2) {
+    if (aspectDelta <= 0.5) {
       const areaRadius = Math.sqrt(polygon / Math.PI);
       const circle = detectCirclePath(points, cx, cy, areaRadius, mode, true);
       return circle || null;
