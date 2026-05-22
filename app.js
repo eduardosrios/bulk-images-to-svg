@@ -47,6 +47,8 @@
     simplifyValue: document.getElementById("simplifyValue"),
     curveFit: document.getElementById("curveFit"),
     curveFitValue: document.getElementById("curveFitValue"),
+    shapeDetect: document.getElementById("shapeDetect"),
+    shapeDetectValue: document.getElementById("shapeDetectValue"),
     minRegion: document.getElementById("minRegion"),
     minRegionValue: document.getElementById("minRegionValue"),
     seamFix: document.getElementById("seamFix"),
@@ -152,6 +154,7 @@
       els.precision,
       els.simplify,
       els.curveFit,
+      els.shapeDetect,
       els.minRegion,
       els.seamFix,
       els.numberPrecision,
@@ -244,6 +247,7 @@
     els.precisionValue.textContent = `${els.precision.value}x`;
     els.simplifyValue.textContent = exactMode ? "N/A" : Number(els.simplify.value).toFixed(1);
     els.curveFitValue.textContent = exactMode ? "N/A" : Number(els.curveFit.value).toFixed(2);
+    els.shapeDetectValue.textContent = exactMode ? "N/A" : titleCase(els.shapeDetect.value);
     els.minRegionValue.textContent = exactMode ? "N/A" : `${els.minRegion.value} px`;
     els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
     els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
@@ -254,6 +258,7 @@
     setControlDisabled(els.mergeColors, exactMode);
     setControlDisabled(els.simplify, exactMode);
     setControlDisabled(els.curveFit, exactMode);
+    setControlDisabled(els.shapeDetect, exactMode);
     setControlDisabled(els.minRegion, exactMode);
     setControlDisabled(els.seamFix, exactMode);
     setControlDisabled(els.numberPrecision, exactMode);
@@ -589,6 +594,7 @@
       precision: Number(els.precision.value),
       simplify: Number(els.simplify.value),
       curveFit: Number(els.curveFit.value),
+      shapeDetect: els.shapeDetect.value,
       minRegion: Number(els.minRegion.value),
       seamFix: Number(els.seamFix.value),
       numberPrecision: Number(els.numberPrecision.value),
@@ -762,6 +768,12 @@
       if (options.minRegion > 0 && Math.abs(polygonArea(points)) < options.minRegion) continue;
       points = simplifyClosed(points, pathOptimizeTolerance);
       if (points.length < 3) continue;
+      const primitive = detectPrimitivePath(points, options);
+      if (primitive) {
+        parts.push(primitive.d);
+        cursor = primitive.cursor;
+        continue;
+      }
       const canCurve = tolerance > 0 && options.curveFit > 0;
       parts.push(canCurve ? pointsToSmoothPath(points, cursor, options.curveFit) : pointsToPath(points, cursor));
       cursor = canCurve ? roundedPoint(smoothStartPoint(points)) : roundedPoint(points[0]);
@@ -1364,6 +1376,12 @@
         points = simplifyClosed(points, tolerance);
       }
       if (points.length < 3) continue;
+      const primitive = detectPrimitivePath(points, options);
+      if (primitive) {
+        parts.push(primitive.d);
+        cursor = primitive.cursor;
+        continue;
+      }
       if (tolerance > 0 && options.curveFit > 0 && originalPointCount > 12) {
         parts.push(pointsToSmoothPath(points, cursor, options.curveFit));
         cursor = roundedPoint(smoothStartPoint(points));
@@ -1570,6 +1588,117 @@
       area += current.x * next.y - next.x * current.y;
     }
     return area / 2;
+  }
+
+  function detectPrimitivePath(points, options) {
+    if (!options || options.shapeDetect === "off") return null;
+    const bounds = boundsForPoints(points);
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    if (width <= 0 || height <= 0) return null;
+
+    const rectangle = detectAxisAlignedRectangle(points, bounds, options.shapeDetect);
+    if (rectangle) return rectangle;
+
+    const ellipse = detectEllipsePath(points, bounds, options.shapeDetect);
+    if (ellipse) return ellipse;
+
+    return null;
+  }
+
+  function detectAxisAlignedRectangle(points, bounds, mode) {
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    if (width < 1 || height < 1) return null;
+
+    const tolerance = mode === "aggressive" ? 0.9 : 0.2;
+    let maxEdgeDistance = 0;
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      const distance = Math.min(
+        Math.abs(point.x - bounds.minX),
+        Math.abs(point.x - bounds.maxX),
+        Math.abs(point.y - bounds.minY),
+        Math.abs(point.y - bounds.maxY)
+      );
+      maxEdgeDistance = Math.max(maxEdgeDistance, distance);
+      if (distance > tolerance) return null;
+    }
+
+    const area = Math.abs(polygonArea(points));
+    const boxArea = width * height;
+    if (!boxArea) return null;
+    const areaError = Math.abs(area - boxArea) / boxArea;
+    const maxAreaError = mode === "aggressive" ? 0.035 : 0.006;
+    if (areaError > maxAreaError) return null;
+
+    const start = { x: bounds.minX, y: bounds.minY };
+    return {
+      d: `M${nums(start.x, start.y)}h${num(width)}v${num(height)}H${num(start.x)}Z`,
+      cursor: roundedPoint(start)
+    };
+  }
+
+  function detectEllipsePath(points, bounds, mode) {
+    if (points.length < 8) return null;
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    if (width < 3 || height < 3) return null;
+
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    const rx = width / 2;
+    const ry = height / 2;
+    const radius = (rx + ry) / 2;
+    const maxError = mode === "aggressive" ? Math.max(1.25, radius * 0.035) : Math.max(0.55, radius * 0.014);
+    const maxAreaError = mode === "aggressive" ? 0.12 : 0.045;
+    let totalError = 0;
+    let maxPointError = 0;
+
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      const nx = (point.x - cx) / rx;
+      const ny = (point.y - cy) / ry;
+      const normalizedRadius = Math.sqrt(nx * nx + ny * ny);
+      const pointError = Math.abs(normalizedRadius - 1) * radius;
+      totalError += pointError;
+      maxPointError = Math.max(maxPointError, pointError);
+      if (pointError > maxError) return null;
+    }
+
+    const averageError = totalError / points.length;
+    if (averageError > maxError * 0.42) return null;
+
+    const polygon = Math.abs(polygonArea(points));
+    const ellipseArea = Math.PI * rx * ry;
+    const areaError = Math.abs(polygon - ellipseArea) / ellipseArea;
+    if (areaError > maxAreaError) return null;
+
+    const circleLike = Math.abs(rx - ry) <= (mode === "aggressive" ? Math.max(1, radius * 0.04) : Math.max(0.5, radius * 0.018));
+    const arcRx = circleLike ? radius : rx;
+    const arcRy = circleLike ? radius : ry;
+    const start = { x: cx - arcRx, y: cy };
+
+    return {
+      d: `M${nums(start.x, start.y)}a${nums(arcRx, arcRy)} 0 1 0 ${nums(arcRx * 2, 0)}a${nums(arcRx, arcRy)} 0 1 0 ${nums(-arcRx * 2, 0)}Z`,
+      cursor: roundedPoint(start),
+      maxPointError
+    };
+  }
+
+  function boundsForPoints(points) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+    return { minX, minY, maxX, maxY };
   }
 
   function pointsToPath(points, cursor) {
@@ -2304,6 +2433,10 @@
 
   function formatPercent(value) {
     return value.toFixed(1).replace(".", ",");
+  }
+
+  function titleCase(value) {
+    return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
   }
 
   function precisionStatus(raster, result, options) {
