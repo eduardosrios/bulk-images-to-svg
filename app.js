@@ -1675,9 +1675,10 @@
     if (areaError > maxAreaError) return null;
 
     const aspectDelta = Math.abs(rx - ry) / Math.max(rx, ry);
-    const circleAspectTolerance = mode === "aggressive" ? 0.14 : 0.08;
+    const circleAspectTolerance = mode === "aggressive" ? 0.34 : 0.22;
     if (aspectDelta <= circleAspectTolerance) {
-      const circle = detectCirclePath(points, cx, cy, radius, mode);
+      const areaRadius = Math.sqrt(polygon / Math.PI);
+      const circle = detectCirclePath(points, cx, cy, areaRadius, mode, true);
       return circle || null;
     }
 
@@ -1692,8 +1693,10 @@
     };
   }
 
-  function detectCirclePath(points, cx, cy, radius, mode) {
-    const maxError = mode === "aggressive" ? Math.max(1.4, radius * 0.055) : Math.max(0.65, radius * 0.028);
+  function detectCirclePath(points, cx, cy, radius, mode, relaxed) {
+    const maxError = relaxed
+      ? (mode === "aggressive" ? Math.max(2.2, radius * 0.12) : Math.max(1.35, radius * 0.075))
+      : (mode === "aggressive" ? Math.max(1.4, radius * 0.055) : Math.max(0.65, radius * 0.028));
     let totalError = 0;
 
     for (let i = 0; i < points.length; i += 1) {
@@ -1704,7 +1707,7 @@
       if (error > maxError) return null;
     }
 
-    if (totalError / points.length > maxError * 0.45) return null;
+    if (totalError / points.length > maxError * (relaxed ? 0.65 : 0.45)) return null;
 
     const start = { x: cx - radius, y: cy };
     return {
