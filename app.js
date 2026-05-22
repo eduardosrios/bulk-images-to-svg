@@ -1681,14 +1681,18 @@
     if (areaError > maxAreaError) return null;
 
     const maxError = mode === "aggressive" ? Math.max(3.2, radius * 0.14) : Math.max(2.4, radius * 0.1);
+    const maxAverageError = maxError * 0.55;
     const sampleStep = Math.max(4, radius * 0.08);
     let totalError = 0;
     let sampleCount = 0;
+    const radialSamples = [];
 
     function addRadialSample(point) {
-      const error = Math.abs(Math.hypot(point.x - cx, point.y - cy) - radius);
+      const signedError = Math.hypot(point.x - cx, point.y - cy) - radius;
+      const error = Math.abs(signedError);
       totalError += error;
       sampleCount += 1;
+      radialSamples.push({ point, signedError });
       if (error > maxError) return null;
       return error;
     }
@@ -1709,8 +1713,73 @@
       }
     }
 
-    if (totalError / sampleCount > maxError * 0.55) return null;
+    if (totalError / sampleCount > maxAverageError) return null;
+    if (mode !== "aggressive" && hasRadialWavePattern(radialSamples, cx, cy, radius)) return null;
     return circlePath(cx, cy, radius);
+  }
+
+  function hasRadialWavePattern(samples, cx, cy, radius) {
+    if (samples.length < 24 || radius < 12) return false;
+    const binCount = 48;
+    const bins = Array.from({ length: binCount }, function () {
+      return { total: 0, count: 0 };
+    });
+
+    for (let i = 0; i < samples.length; i += 1) {
+      const sample = samples[i];
+      const angle = normalizePositiveAngle(Math.atan2(sample.point.y - cy, sample.point.x - cx));
+      const index = Math.min(binCount - 1, Math.floor((angle / (Math.PI * 2)) * binCount));
+      bins[index].total += sample.signedError;
+      bins[index].count += 1;
+    }
+
+    const averages = bins.map(function (bin) {
+      return bin.count ? bin.total / bin.count : 0;
+    });
+    const mean = averages.reduce(function (total, value) {
+      return total + value;
+    }, 0) / averages.length;
+    const centered = averages.map(function (value) {
+      return value - mean;
+    });
+    const peakToPeak = Math.max.apply(null, centered) - Math.min.apply(null, centered);
+    const waveAmplitude = Math.max(1.4, radius * 0.032);
+    if (peakToPeak < waveAmplitude) return false;
+
+    const threshold = Math.max(0.75, radius * 0.012);
+    const signs = centered.map(function (average, index) {
+      if (!bins[index].count) return 0;
+      if (average > threshold) return 1;
+      if (average < -threshold) return -1;
+      return 0;
+    });
+
+    const absoluteSigns = averages.map(function (average, index) {
+      if (!bins[index].count) return 0;
+      if (average > threshold) return 1;
+      if (average < -threshold) return -1;
+      return 0;
+    });
+
+    const centeredPattern = countRadialPattern(signs);
+    const absolutePattern = countRadialPattern(absoluteSigns);
+    return (centeredPattern.activeBins >= 10 && centeredPattern.signChanges >= 6)
+      || (absolutePattern.activeBins >= 10 && absolutePattern.signChanges >= 6);
+  }
+
+  function countRadialPattern(signs) {
+    let activeBins = 0;
+    let signChanges = 0;
+    let previousSign = 0;
+    for (let i = 0; i < signs.length * 2; i += 1) {
+      const sign = signs[i % signs.length];
+      if (!sign) continue;
+      if (i < signs.length) activeBins += 1;
+      if (previousSign && sign !== previousSign) signChanges += 1;
+      previousSign = sign;
+    }
+
+    return { activeBins, signChanges };
   }
 
   function detectEllipsePath(points, bounds, mode) {
