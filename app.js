@@ -1888,6 +1888,13 @@
         minError: 2.2,
         errorRatio: 0.042,
         averageErrorFactor: 0.72,
+        finalMinError: 1.55,
+        finalErrorRatio: 0.032,
+        finalAverageErrorFactor: 0.62,
+        maxArcAngleOverflow: 0.08,
+        fitSamples: 36,
+        fineFitIterations: 14,
+        lengthBonus: 0.025,
         minDirectionConsistency: 0.72,
         minSegmentTurnConsistency: 0.42,
         minChordRadiusRatio: 0.85
@@ -1903,6 +1910,13 @@
       minError: 1.45,
       errorRatio: 0.026,
       averageErrorFactor: 0.62,
+      finalMinError: 0.95,
+      finalErrorRatio: 0.014,
+      finalAverageErrorFactor: 0.48,
+      maxArcAngleOverflow: 0.045,
+      fitSamples: 32,
+      fineFitIterations: 14,
+      lengthBonus: 0.01,
       minDirectionConsistency: 0.82,
       minSegmentTurnConsistency: 0.58,
       minChordRadiusRatio: 1.12
@@ -1913,11 +1927,22 @@
     const remainingEdges = points.length - 1 - startIndex;
     if (remainingEdges < settings.minEdges) return null;
     const maxEdges = Math.min(settings.maxEdges, remainingEdges);
+    let best = null;
     for (let edgeCount = maxEdges; edgeCount >= settings.minEdges; edgeCount -= 1) {
       const candidate = evaluateArcCandidate(points, startIndex, startIndex + edgeCount, settings);
-      if (candidate) return candidate;
+      if (!candidate) continue;
+      const score = candidate.objective - (edgeCount * settings.lengthBonus);
+      if (!best || score < best.score) {
+        best = {
+          endIndex: candidate.endIndex,
+          radius: candidate.radius,
+          largeArcFlag: candidate.largeArcFlag,
+          sweepFlag: candidate.sweepFlag,
+          score
+        };
+      }
     }
-    return null;
+    return best;
   }
 
   function evaluateArcCandidate(points, startIndex, endIndex, settings) {
@@ -1964,18 +1989,109 @@
     const averageError = totalError / (endIndex - startIndex + 1);
     if (averageError > maxError * settings.averageErrorFactor) return null;
 
-    const radius = roundPathNumber(Math.max(circle.radius, (chord / 2) + 0.001));
-    const flags = resolveArcFlags(start, end, radius, circle, turn);
-    if (!flags || flags.centerError > maxError * 1.6) return null;
+    const flags = optimizeEndpointArc(points, startIndex, endIndex, circle, turn, settings);
+    if (!flags) return null;
+    const finalMaxError = Math.max(settings.finalMinError, flags.radius * settings.finalErrorRatio);
+    if (flags.fit.maxError > finalMaxError) return null;
+    if (flags.fit.averageError > finalMaxError * settings.finalAverageErrorFactor) return null;
+    if (flags.fit.maxAngleOverflow > settings.maxArcAngleOverflow) return null;
+
     return {
       endIndex,
       radius: flags.radius,
       largeArcFlag: flags.largeArcFlag,
-      sweepFlag: flags.sweepFlag
+      sweepFlag: flags.sweepFlag,
+      objective: flags.objective
     };
   }
 
-  function resolveArcFlags(start, end, radius, circle, turn) {
+  function optimizeEndpointArc(points, startIndex, endIndex, initialCircle, turn, settings) {
+    const start = roundedPoint(points[startIndex]);
+    const end = roundedPoint(points[endIndex]);
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const chord = Math.hypot(dx, dy);
+    if (chord <= 0) return null;
+
+    const halfChord = chord / 2;
+    const midpoint = {
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2
+    };
+    const perpendicular = {
+      x: -dy / chord,
+      y: dx / chord
+    };
+    const initialSignedHeight = ((initialCircle.cx - midpoint.x) * perpendicular.x) + ((initialCircle.cy - midpoint.y) * perpendicular.y);
+    const preferredSign = initialSignedHeight < 0 ? -1 : 1;
+    const radiusMin = Math.max(halfChord + 0.001, settings.minRadius);
+    const radiusMax = Math.max(radiusMin, chord / settings.minChordRadiusRatio);
+    const heightMin = Math.sqrt(Math.max(0, (radiusMin * radiusMin) - (halfChord * halfChord)));
+    const heightMax = Math.sqrt(Math.max(0, (radiusMax * radiusMax) - (halfChord * halfChord)));
+    if (!Number.isFinite(heightMax) || heightMax < heightMin) return null;
+
+    const initialHeight = Math.max(heightMin, Math.min(heightMax, Math.abs(initialSignedHeight)));
+    const largeArcPreference = Math.abs(turn) > Math.PI ? 1 : 0;
+    let best = null;
+    const signs = preferredSign === 1 ? [1, -1] : [-1, 1];
+    const largeFlags = largeArcPreference ? [1, 0] : [0, 1];
+
+    function evaluateHeight(sign, height, largeArcFlag) {
+      const center = {
+        x: midpoint.x + (perpendicular.x * height * sign),
+        y: midpoint.y + (perpendicular.y * height * sign)
+      };
+      const radius = Math.hypot(start.x - center.x, start.y - center.y);
+      const arc = endpointArcForCenter(start, end, center, radius, largeArcFlag);
+      if (!arc) return;
+      const fit = arcSegmentFitError(points, startIndex, endIndex, arc);
+      if (!fit) return;
+      const objective = fit.maxError + (fit.averageError * 0.8) + (fit.maxAngleOverflow * radius * 1.5);
+      if (!best || objective < best.objective) {
+        best = {
+          radius: arc.radius,
+          center: arc.center,
+          startAngle: arc.startAngle,
+          sweepDelta: arc.sweepDelta,
+          largeArcFlag: arc.largeArcFlag,
+          sweepFlag: arc.sweepFlag,
+          sign,
+          height,
+          fit,
+          objective
+        };
+      }
+    }
+
+    for (let signIndex = 0; signIndex < signs.length; signIndex += 1) {
+      const sign = signs[signIndex];
+      for (let flagIndex = 0; flagIndex < largeFlags.length; flagIndex += 1) {
+        const largeArcFlag = largeFlags[flagIndex];
+        evaluateHeight(sign, heightMin, largeArcFlag);
+        evaluateHeight(sign, initialHeight, largeArcFlag);
+        evaluateHeight(sign, heightMax, largeArcFlag);
+        for (let sample = 1; sample < settings.fitSamples; sample += 1) {
+          const amount = sample / settings.fitSamples;
+          evaluateHeight(sign, heightMin + ((heightMax - heightMin) * amount), largeArcFlag);
+        }
+      }
+    }
+
+    if (best) {
+      let step = (heightMax - heightMin) / Math.max(4, settings.fitSamples);
+      for (let iteration = 0; iteration < settings.fineFitIterations && step > 0.0001; iteration += 1) {
+        evaluateHeight(best.sign, Math.max(heightMin, best.height - step), best.largeArcFlag);
+        evaluateHeight(best.sign, Math.min(heightMax, best.height + step), best.largeArcFlag);
+        evaluateHeight(best.sign, Math.max(heightMin, best.height - (step * 0.5)), best.largeArcFlag);
+        evaluateHeight(best.sign, Math.min(heightMax, best.height + (step * 0.5)), best.largeArcFlag);
+        step *= 0.5;
+      }
+    }
+
+    return best;
+  }
+
+  function endpointArcForCenter(start, end, center, radius, largeArcFlag) {
     const from = roundedPoint(start);
     const to = roundedPoint(end);
     const dx = to.x - from.x;
@@ -1983,33 +2099,75 @@
     const chord = Math.hypot(dx, dy);
     if (chord <= 0) return null;
 
-    const safeRadius = Math.max(radius, (chord / 2) + 0.001);
+    const safeRadius = Math.max(roundPathNumber(radius), (chord / 2) + 0.001);
     const halfChord = chord / 2;
     const heightSq = (safeRadius * safeRadius) - (halfChord * halfChord);
     if (heightSq < -0.001) return null;
-
     const height = Math.sqrt(Math.max(0, heightSq));
     const midpointX = (from.x + to.x) / 2;
     const midpointY = (from.y + to.y) / 2;
     const perpendicularX = -dy / chord;
     const perpendicularY = dx / chord;
-    const centerPlus = {
-      x: midpointX + (perpendicularX * height),
-      y: midpointY + (perpendicularY * height)
+    const centerSign = (((center.x - midpointX) * perpendicularX) + ((center.y - midpointY) * perpendicularY)) < 0 ? -1 : 1;
+    const finalCenter = {
+      x: midpointX + (perpendicularX * height * centerSign),
+      y: midpointY + (perpendicularY * height * centerSign)
     };
-    const centerMinus = {
-      x: midpointX - (perpendicularX * height),
-      y: midpointY - (perpendicularY * height)
-    };
-    const plusError = pointDistance(centerPlus, circle);
-    const minusError = pointDistance(centerMinus, circle);
-    const centerSign = plusError <= minusError ? 1 : -1;
-    const largeArcFlag = turn > Math.PI ? 1 : 0;
+    const sweepFlag = centerSign < 0 ? largeArcFlag : 1 - largeArcFlag;
+    const startAngle = Math.atan2(from.y - finalCenter.y, from.x - finalCenter.x);
+    const endAngle = Math.atan2(to.y - finalCenter.y, to.x - finalCenter.x);
     return {
       radius: safeRadius,
+      center: finalCenter,
+      startAngle,
+      sweepDelta: svgArcSweepDelta(startAngle, endAngle, largeArcFlag, sweepFlag),
       largeArcFlag,
-      sweepFlag: centerSign < 0 ? largeArcFlag : 1 - largeArcFlag,
-      centerError: Math.min(plusError, minusError)
+      sweepFlag
+    };
+  }
+
+  function svgArcSweepDelta(startAngle, endAngle, largeArcFlag, sweepFlag) {
+    if (sweepFlag) {
+      let delta = normalizePositiveAngle(endAngle - startAngle);
+      if (largeArcFlag && delta < Math.PI) delta -= Math.PI * 2;
+      if (!largeArcFlag && delta > Math.PI) delta -= Math.PI * 2;
+      return delta;
+    }
+    let delta = -normalizePositiveAngle(startAngle - endAngle);
+    if (largeArcFlag && Math.abs(delta) < Math.PI) delta += Math.PI * 2;
+    if (!largeArcFlag && Math.abs(delta) > Math.PI) delta += Math.PI * 2;
+    return delta;
+  }
+
+  function arcSegmentFitError(points, startIndex, endIndex, arc) {
+    const span = Math.abs(arc.sweepDelta);
+    if (!Number.isFinite(span) || span <= 0.0001 || span >= Math.PI * 2) return null;
+    let maxError = 0;
+    let totalError = 0;
+    let maxAngleOverflow = 0;
+    const count = endIndex - startIndex + 1;
+
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      const point = points[i];
+      const angle = Math.atan2(point.y - arc.center.y, point.x - arc.center.x);
+      const progress = arc.sweepDelta >= 0
+        ? normalizePositiveAngle(angle - arc.startAngle)
+        : normalizePositiveAngle(arc.startAngle - angle);
+      let overflow = 0;
+      if (progress > span) {
+        overflow = Math.min(progress - span, Math.PI * 2 - progress);
+      }
+      const radialError = Math.abs(pointDistance(point, arc.center) - arc.radius);
+      const error = Math.hypot(radialError, arc.radius * overflow);
+      maxAngleOverflow = Math.max(maxAngleOverflow, overflow);
+      maxError = Math.max(maxError, error);
+      totalError += error;
+    }
+
+    return {
+      maxError,
+      averageError: totalError / count,
+      maxAngleOverflow
     };
   }
 
@@ -2059,6 +2217,12 @@
     let result = delta;
     while (result > Math.PI) result -= Math.PI * 2;
     while (result < -Math.PI) result += Math.PI * 2;
+    return result;
+  }
+
+  function normalizePositiveAngle(delta) {
+    let result = delta % (Math.PI * 2);
+    if (result < 0) result += Math.PI * 2;
     return result;
   }
 
