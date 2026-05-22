@@ -2003,7 +2003,7 @@
     return {
       useBezier: false,
       rotateClosedContour: false,
-      sampleArcSegments: false,
+      sampleArcSegments: true,
       minEdges: 8,
       maxEdges: 72,
       minRadius: 4,
@@ -2022,7 +2022,9 @@
       lengthBonus: 0.01,
       minDirectionConsistency: 0.82,
       minSegmentTurnConsistency: 0.58,
-      minChordRadiusRatio: 1.12
+      minChordRadiusRatio: 1.12,
+      minSignificantTurns: 4,
+      maxSegmentTurnShare: 0.5
     };
   }
 
