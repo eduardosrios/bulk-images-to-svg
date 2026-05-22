@@ -1,9 +1,6 @@
 name: Deploy GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -26,11 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -38,4 +30,4 @@ jobs:
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
