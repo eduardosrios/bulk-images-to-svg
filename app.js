@@ -1452,7 +1452,7 @@
         cursor = primitive.cursor;
         continue;
       }
-      const arcPath = arcCorrectPath(points, cursor, options, "color");
+      const arcPath = arcCorrectPath(points, cursor, options);
       if (arcPath) {
         parts.push(arcPath.d);
         cursor = arcPath.cursor;
@@ -2016,9 +2016,9 @@
     };
   }
 
-  function arcCorrectPath(points, previousCursor, options, profile) {
+  function arcCorrectPath(points, previousCursor, options) {
     if (!options || !options.arcCorrection || options.arcCorrection === "off" || points.length < 10) return null;
-    const settings = arcCorrectionSettings(options.arcCorrection, profile);
+    const settings = arcCorrectionSettings(options.arcCorrection);
     const arcPoints = settings.rotateClosedContour ? rotatePointsForArcCorrection(points) : points;
     const origin = roundedPoint(previousCursor || { x: 0, y: 0 });
     const start = roundedPoint(arcPoints[0]);
@@ -2172,8 +2172,7 @@
     return sharpIndex >= 0 ? sharpIndex : straightIndex;
   }
 
-  function arcCorrectionSettings(mode, profile) {
-    const isColorTrace = profile === "color";
+  function arcCorrectionSettings(mode) {
     if (mode === "aggressive") {
       return {
         useBezier: false,
@@ -2244,7 +2243,7 @@
         bezierMaxControlRatio: 1.8
       };
     }
-    const lightSettings = {
+    return {
       useBezier: false,
       rotateClosedContour: false,
       sampleArcSegments: true,
@@ -2270,25 +2269,6 @@
       minSignificantTurns: 4,
       maxSegmentTurnShare: 0.5
     };
-    if (isColorTrace) {
-      lightSettings.minEdges = 6;
-      lightSettings.maxEdges = 128;
-      lightSettings.minTurn = 0.12;
-      lightSettings.minSagitta = 0.65;
-      lightSettings.minError = 1.85;
-      lightSettings.errorRatio = 0.034;
-      lightSettings.averageErrorFactor = 0.68;
-      lightSettings.finalMinError = 1.25;
-      lightSettings.finalErrorRatio = 0.02;
-      lightSettings.finalAverageErrorFactor = 0.54;
-      lightSettings.lengthBonus = 0.018;
-      lightSettings.minDirectionConsistency = 0.88;
-      lightSettings.minSegmentTurnConsistency = 0.7;
-      lightSettings.minChordRadiusRatio = 0.18;
-      lightSettings.minSignificantTurns = 5;
-      lightSettings.maxSegmentTurnShare = 0.42;
-    }
-    return lightSettings;
   }
 
   function chooseArcCorrectionSegment(arc, curve) {
