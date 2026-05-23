@@ -67,6 +67,7 @@
   const SUPPORTED_IMAGE_LABEL = "PNG, JPG, JPEG, GIF, WebP, or AVIF";
   const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/jpg", "image/pjpeg", "image/gif", "image/webp", "image/avif"]);
   const SUPPORTED_IMAGE_EXTENSION = /\.(png|jpe?g|gif|webp|avif)$/i;
+  const DEFAULT_COLOR_LIMIT = 256;
   const SAMPLE_IMAGE_NAME = "181505.png";
   const SAMPLE_IMAGE_BYTES = 16057;
   const ALPHA_TRACE_OPTIMIZE_TOLERANCE = 0.25;
@@ -81,6 +82,7 @@
     sourceBytes: 0,
     svg: "",
     palette: [],
+    requestedPaletteSize: Number(els.paletteSize.value),
     images: [],
     activeImageId: "",
     nextImageId: 1,
@@ -166,10 +168,12 @@
       els.matte
     ].forEach(function (control) {
       control.addEventListener("input", function () {
+        if (control === els.paletteSize) state.requestedPaletteSize = Number(els.paletteSize.value);
         syncControlLabels();
         queueProcess();
       });
       control.addEventListener("change", function () {
+        if (control === els.paletteSize) state.requestedPaletteSize = Number(els.paletteSize.value);
         syncControlLabels();
         queueProcess();
       });
@@ -257,6 +261,15 @@
     els.minRegionValue.textContent = exactMode ? "N/A" : `${els.minRegion.value} px`;
     els.seamFixValue.textContent = exactMode ? "N/A" : Number(els.seamFix.value).toFixed(2);
     els.numberPrecisionValue.textContent = exactMode ? "N/A" : els.numberPrecision.value;
+  }
+
+  function updatePaletteSizeLimit(totalColors) {
+    const max = Math.max(1, Math.round(Number(totalColors) || DEFAULT_COLOR_LIMIT));
+    const min = max <= 1 ? 1 : 2;
+    els.paletteSize.min = String(min);
+    els.paletteSize.max = String(max);
+    els.paletteSize.value = String(Math.max(min, Math.min(max, state.requestedPaletteSize)));
+    syncControlLabels();
   }
 
   function syncControlAvailability(exactMode) {
@@ -473,6 +486,7 @@
       sourceHeight: image.naturalHeight || image.height,
       svg: "",
       palette: [],
+      sourceColorCount: 0,
       traceText: "-",
       svgSizeText: "-",
       detailText: "-",
@@ -499,6 +513,7 @@
     els.copyButton.disabled = true;
     els.downloadAllButton.hidden = true;
     els.downloadAllButton.disabled = true;
+    updatePaletteSizeLimit(DEFAULT_COLOR_LIMIT);
     setOutputBadge("Idle");
     setOriginalBadge("Waiting", state.sourceName);
     setOriginalSizeBadge(0);
@@ -534,6 +549,7 @@
     els.originalSizeStat.textContent = state.sourceBytes ? formatBytes(state.sourceBytes) : "-";
     setOriginalSizeBadge(state.sourceBytes);
     setOriginalBadge("Loaded", state.sourceName);
+    updatePaletteSizeLimit(record.sourceColorCount || DEFAULT_COLOR_LIMIT);
     els.traceStat.textContent = record.traceText || "-";
     els.sizeStat.textContent = record.svgSizeText || "-";
     setSvgSizeBadge(els.sizeStat.textContent);
@@ -658,9 +674,11 @@
         const raster = conversion.raster;
         const result = conversion.result;
         const svg = conversion.svg;
+        const sourceColorCount = detectedSourceColorCount(result);
 
         state.svg = svg;
         state.palette = result.palette;
+        updatePaletteSizeLimit(sourceColorCount);
         renderSvgPreview(svg);
         renderPalette(result.palette);
 
@@ -679,6 +697,7 @@
         if (finishedRecord) {
           finishedRecord.svg = svg;
           finishedRecord.palette = result.palette;
+          finishedRecord.sourceColorCount = sourceColorCount;
           finishedRecord.traceText = els.traceStat.textContent;
           finishedRecord.svgSizeText = els.sizeStat.textContent;
           finishedRecord.detailText = els.detailStat.textContent;
@@ -773,7 +792,8 @@
     return {
       paths,
       palette: quantized.palette,
-      activePixels: quantized.activePixels
+      activePixels: quantized.activePixels,
+      sourceColorCount: quantized.sourceColorCount
     };
   }
 
@@ -814,6 +834,7 @@
       paths: parts.length ? [`<path${fillAttr(color.hex)} fill-rule="evenodd" d="${parts.join("")}"/>`] : [],
       palette: [{ hex: color.hex, opacity: 1, count: color.count }],
       activePixels: color.count,
+      sourceColorCount: color.sourceColorCount || 1,
       sourcePoints: pointCount
     };
   }
@@ -873,6 +894,7 @@
     });
     const paths = [];
     const palette = [];
+    const sourceColorCount = sortedKeys.length;
 
     for (let i = 0; i < sortedKeys.length; i += 1) {
       const key = sortedKeys[i];
@@ -888,7 +910,7 @@
       }
     }
 
-    return { paths, palette, activePixels };
+    return { paths, palette, activePixels, sourceColorCount };
   }
 
   function traceAlphaThreshold(alphaThreshold) {
@@ -908,11 +930,13 @@
     let maxR = 0;
     let maxG = 0;
     let maxB = 0;
+    const colorKeys = new Set();
     const scratch = { r: 0, g: 0, b: 0, a: 0 };
 
     for (let index = 0; index < data.length / 4; index += 1) {
       readColor(data, index, options, scratch);
       if (scratch.a === 0) continue;
+      colorKeys.add(((scratch.r >> 4) << 8) | ((scratch.g >> 4) << 4) | (scratch.b >> 4));
       r += scratch.r * scratch.a;
       g += scratch.g * scratch.a;
       b += scratch.b * scratch.a;
@@ -926,10 +950,11 @@
       maxB = Math.max(maxB, scratch.b);
     }
 
-    if (!weight) return { hex: "#000000", count: 0, isMonochrome: true };
+    if (!weight) return { hex: "#000000", count: 0, sourceColorCount: 0, isMonochrome: true };
     return {
       hex: rgbToHex(Math.round(r / weight), Math.round(g / weight), Math.round(b / weight)),
       count,
+      sourceColorCount: colorKeys.size,
       isMonochrome: Math.max(maxR - minR, maxG - minG, maxB - minB) <= MONOCHROME_COLOR_DISTANCE
     };
   }
@@ -1124,14 +1149,15 @@
     }
 
     if (!activeIndices.length) {
-      return { indexMap, palette: [], activePixels: 0 };
+      return { indexMap, palette: [], activePixels: 0, sourceColorCount: 0 };
     }
 
     const bucketList = Array.from(buckets.values()).sort(function (a, b) {
       return b.count - a.count;
     });
 
-    const colorCount = Math.max(1, Math.min(options.paletteSize, bucketList.length));
+    const sourceColorCount = bucketList.length;
+    const colorCount = Math.max(1, Math.min(options.paletteSize, sourceColorCount));
     const centers = [];
     for (let i = 0; i < colorCount; i += 1) {
       const bucket = bucketList[i];
@@ -1207,10 +1233,12 @@
     }
 
     if (options.mergeColors > 0 && palette.length > 1) {
-      return mergeSimilarColors(indexMap, palette, activeIndices.length, options.mergeColors);
+      const merged = mergeSimilarColors(indexMap, palette, activeIndices.length, options.mergeColors);
+      merged.sourceColorCount = sourceColorCount;
+      return merged;
     }
 
-    return { indexMap, palette, activePixels: activeIndices.length };
+    return { indexMap, palette, activePixels: activeIndices.length, sourceColorCount };
   }
 
   function mergeSimilarColors(indexMap, palette, activePixels, threshold) {
@@ -3166,6 +3194,13 @@
     });
   }
 
+  function detectedSourceColorCount(result) {
+    if (result && Number.isFinite(result.sourceColorCount)) {
+      return Math.max(1, Math.round(result.sourceColorCount));
+    }
+    return Math.max(1, uniquePalette(result && result.palette ? result.palette : []).length);
+  }
+
   function downloadSvg() {
     if (!state.svg) return;
     downloadBlob(new Blob([state.svg], { type: "image/svg+xml;charset=utf-8" }), `${safeFileStem(state.sourceName)}.svg`);
@@ -3195,8 +3230,10 @@
         const conversion = convertImageRecord(record, options);
         const bytes = new Blob([conversion.svg]).size;
         const colorCount = uniquePalette(conversion.result.palette).length;
+        const sourceColorCount = detectedSourceColorCount(conversion.result);
         record.svg = conversion.svg;
         record.palette = conversion.result.palette;
+        record.sourceColorCount = sourceColorCount;
         record.traceText = conversion.raster.wasCapped
           ? `${conversion.raster.width} x ${conversion.raster.height} capped`
           : `${conversion.raster.width} x ${conversion.raster.height}`;
