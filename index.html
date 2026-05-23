@@ -42,7 +42,7 @@
             <input id="fileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,.png,.jpg,.jpeg,.gif,.webp,.avif" multiple>
             <span class="empty-upload-hero" aria-hidden="true">
               <span class="empty-upload-title">Trace Pixels To Vectors</span>
-              <span class="empty-upload-subtitle">Turn multiple images into clean and lightweight SVGs</span>
+              <span class="empty-upload-subtitle">Turn multiple images into <strong>very lightweight</strong> SVGs</span>
             </span>
             <span class="empty-drop-target" aria-hidden="true">
               <span class="format-card-row">
@@ -270,7 +270,10 @@
           <article class="preview-pane">
             <div class="preview-head">
               <h2>Original</h2>
-              <span id="originalBadge">IMAGE : Waiting</span>
+              <div class="preview-badges" aria-label="Original preview status">
+                <span id="originalSizeBadge" hidden>-</span>
+                <span id="originalBadge">IMAGE : Waiting</span>
+              </div>
             </div>
             <div class="preview-stage checker">
               <canvas id="originalCanvas" aria-label="Original image preview"></canvas>
@@ -280,7 +283,10 @@
           <article class="preview-pane output-pane">
             <div class="preview-head">
               <h2>SVG output</h2>
-              <span id="outputBadge">SVG : Idle</span>
+              <div class="preview-badges" aria-label="SVG preview status">
+                <span id="svgSizeBadge" hidden>-</span>
+                <span id="outputBadge">SVG : Idle</span>
+              </div>
             </div>
             <div class="preview-stage checker" id="svgPreview" aria-label="SVG preview"></div>
           </article>
