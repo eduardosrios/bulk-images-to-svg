@@ -1439,7 +1439,6 @@
     let cursor = { x: 0, y: 0 };
     for (let i = 0; i < loops.length; i += 1) {
       let points = removeCollinear(loops[i]);
-      points = smoothStraightStairSteps(points);
       const originalPointCount = points.length;
       if (options.minRegion > 0 && Math.abs(polygonArea(points)) < options.minRegion) continue;
       if (tolerance > 0) {
@@ -1578,122 +1577,6 @@
       if (dx1 * dy2 !== dy1 * dx2) result.push(current);
     }
     return result;
-  }
-
-  function smoothStraightStairSteps(points) {
-    if (points.length < 10) return points.slice();
-
-    const closed = points.concat([points[0]]);
-    const result = [];
-    let index = 0;
-
-    while (index < points.length) {
-      const run = collectStraightStairRun(closed, index, points.length);
-      if (run && run.end - run.start >= 6) {
-        const startPoint = closed[run.start];
-        const endPoint = closed[run.end];
-        if (!lastPointEquals(result, startPoint)) result.push(startPoint);
-        if (!lastPointEquals(result, endPoint)) result.push(endPoint);
-        index = run.end;
-        continue;
-      }
-
-      if (!lastPointEquals(result, closed[index])) result.push(closed[index]);
-      index += 1;
-    }
-
-    if (result.length > 1 && pointDistanceSq(result[0], result[result.length - 1]) <= 0.000001) {
-      result.pop();
-    }
-    return result.length >= 3 ? removeCollinear(result) : points.slice();
-  }
-
-  function collectStraightStairRun(points, startIndex, maxPointCount) {
-    const runPoints = [points[startIndex]];
-    const edges = [];
-    let previousAxis = "";
-    let xDirection = 0;
-    let yDirection = 0;
-    let index = startIndex;
-
-    while (index < maxPointCount) {
-      const edge = axisEdge(points[index], points[index + 1]);
-      if (!edge || edge.length > 12) break;
-      if (previousAxis && edge.axis === previousAxis) break;
-      if (edge.dx) {
-        const sign = Math.sign(edge.dx);
-        if (!xDirection) {
-          xDirection = sign;
-        } else if (sign !== xDirection) {
-          break;
-        }
-      }
-      if (edge.dy) {
-        const sign = Math.sign(edge.dy);
-        if (!yDirection) {
-          yDirection = sign;
-        } else if (sign !== yDirection) {
-          break;
-        }
-      }
-
-      edges.push(edge);
-      runPoints.push(points[index + 1]);
-      previousAxis = edge.axis;
-      index += 1;
-    }
-
-    if (edges.length < 4) return null;
-
-    const first = runPoints[0];
-    const last = runPoints[runPoints.length - 1];
-    const width = Math.abs(last.x - first.x);
-    const height = Math.abs(last.y - first.y);
-    if (width < 3 || height < 3) return null;
-
-    const ratio = width / height;
-    if (ratio < 0.08 || ratio > 12) return null;
-    const tolerance = Math.max(1.15, Math.min(2.4, Math.max(width, height) * 0.045));
-    if (maxDistanceFromLine(runPoints, first, last) > tolerance) return null;
-
-    return {
-      start: startIndex,
-      end: index
-    };
-  }
-
-  function axisEdge(a, b) {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    if (dx && dy) return null;
-    const length = Math.abs(dx) + Math.abs(dy);
-    if (!length) return null;
-    return {
-      dx,
-      dy,
-      length,
-      axis: dx ? "x" : "y"
-    };
-  }
-
-  function maxDistanceFromLine(points, a, b) {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length = Math.hypot(dx, dy);
-    if (!length) return Infinity;
-    let maxDistance = 0;
-
-    for (let i = 1; i < points.length - 1; i += 1) {
-      const point = points[i];
-      const distance = Math.abs((dy * point.x) - (dx * point.y) + (b.x * a.y) - (b.y * a.x)) / length;
-      maxDistance = Math.max(maxDistance, distance);
-    }
-
-    return maxDistance;
-  }
-
-  function lastPointEquals(points, point) {
-    return points.length > 0 && pointDistanceSq(points[points.length - 1], point) <= 0.000001;
   }
 
   function simplifyClosed(points, tolerance) {
