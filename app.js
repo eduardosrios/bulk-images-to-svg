@@ -264,12 +264,14 @@
   }
 
   function updatePaletteSizeLimit(totalColors) {
+    const previousValue = els.paletteSize.value;
     const max = Math.max(1, Math.round(Number(totalColors) || DEFAULT_COLOR_LIMIT));
     const min = max <= 1 ? 1 : 2;
     els.paletteSize.min = String(min);
     els.paletteSize.max = String(max);
     els.paletteSize.value = String(Math.max(min, Math.min(max, state.requestedPaletteSize)));
     syncControlLabels();
+    return els.paletteSize.value !== previousValue;
   }
 
   function syncControlAvailability(exactMode) {
@@ -675,10 +677,18 @@
         const result = conversion.result;
         const svg = conversion.svg;
         const sourceColorCount = detectedSourceColorCount(result);
+        const paletteSizeChanged = updatePaletteSizeLimit(sourceColorCount);
+
+        if (options.mode === "trace" && paletteSizeChanged && Number(els.paletteSize.value) !== options.paletteSize) {
+          const pendingRecord = imageRecordById(processingImageId);
+          if (pendingRecord) pendingRecord.sourceColorCount = sourceColorCount;
+          state.needsProcess = true;
+          setStatus("Updating color limit...");
+          return;
+        }
 
         state.svg = svg;
         state.palette = result.palette;
-        updatePaletteSizeLimit(sourceColorCount);
         renderSvgPreview(svg);
         renderPalette(result.palette);
 
